@@ -1,0 +1,1042 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Crack the Vault</title>
+<!--
+  Crack the Vault — a classroom escape-room game about codes, patterns and digital safety.
+  Single file: no build step, no libraries. Open it by double-clicking.
+  The Google Font below is optional decoration; it loads without blocking the page and the
+  game falls back to system fonts when offline.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&display=swap" media="print" onload="this.media='all'">
+<style>
+  :root {
+    color-scheme: light;
+    --bg1: #fff1d6; --bg2: #d9efff; --page: #f7f5ff;
+    --ink: #1f2347; --muted: #5a6285;
+    --door: #2b3560; --door2: #1a2244; --rivet: #ffd166;
+    --coral: #ff6b6b; --coral-dark: #d94e4e; --sun: #ffd166; --mint: #22c48b; --sky: #3aa7f0; --violet: #8b5cf6;
+    --team1: #ff6b6b; --team2: #3aa7f0; --team3: #8b5cf6;
+    --radius: 24px;
+    --shadow: 0 12px 34px rgba(31, 35, 71, .13);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    font-family: "Nunito", "Segoe UI", "Trebuchet MS", system-ui, -apple-system, sans-serif;
+    font-size: 18px; line-height: 1.45; color: var(--ink);
+    background:
+      radial-gradient(1100px 650px at 5% -5%, var(--bg1), transparent 60%),
+      radial-gradient(1000px 650px at 100% 0%, var(--bg2), transparent 60%),
+      var(--page);
+    background-attachment: fixed;
+    padding: 0 16px 48px;
+  }
+  [hidden] { display: none !important; }
+  button, input { font: inherit; }
+  h1, h2, h3 { margin: 0; line-height: 1.15; }
+  p { margin: 0; }
+  .muted { color: var(--muted); }
+
+  /* ---------- top bar ---------- */
+  .topbar {
+    position: sticky; top: 0; z-index: 20;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+    margin: 0 -16px 20px; padding: 10px 18px;
+    background: rgba(247, 245, 255, .88); backdrop-filter: blur(8px);
+    border-bottom: 1px solid rgba(31, 35, 71, .08);
+  }
+  .brand { font-weight: 900; font-size: 1.15rem; letter-spacing: -.2px; }
+  .pill {
+    display: inline-block; padding: 6px 14px; border-radius: 999px; font-weight: 800; font-size: .95rem;
+    background: #fff; box-shadow: 0 2px 8px rgba(31, 35, 71, .08);
+  }
+  .pill.door { background: var(--sun); color: #5a3d00; }
+  .timer {
+    font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+    font-variant-numeric: tabular-nums; color: var(--muted);
+  }
+  .topbar-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .quit-btn { background: none; border: 0; color: var(--muted); font-weight: 800; font-size: .9rem; cursor: pointer; padding: 6px 10px; border-radius: 999px; opacity: .75; }
+  .quit-btn:hover { opacity: 1; background: #fff0ee; color: #b42318; }
+
+  /* ---------- buttons ---------- */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    font-weight: 900; font-size: 1.1rem; padding: 14px 28px; border-radius: 999px; border: 0; cursor: pointer;
+    color: var(--ink); background: #fff; box-shadow: 0 6px 0 #d9d6ee;
+    transition: transform .08s ease, box-shadow .08s ease, filter .15s ease;
+    text-decoration: none; -webkit-tap-highlight-color: transparent;
+  }
+  .btn:hover { filter: brightness(1.04); }
+  .btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #d9d6ee; }
+  .btn:focus-visible { outline: 4px solid rgba(58, 167, 240, .5); outline-offset: 2px; }
+  .btn:disabled { opacity: .55; cursor: default; transform: none; }
+  .btn-primary { background: linear-gradient(135deg, #ff8f6b, var(--coral)); color: #fff; box-shadow: 0 6px 0 var(--coral-dark); }
+  .btn-primary:active { box-shadow: 0 2px 0 var(--coral-dark); }
+  .btn-mint { background: linear-gradient(135deg, #43dba7, var(--mint)); color: #073b2b; box-shadow: 0 6px 0 #159a6a; }
+  .btn-mint:active { box-shadow: 0 2px 0 #159a6a; }
+  .btn-xl { font-size: 1.5rem; padding: 18px 46px; }
+  .btn-ghost { background: transparent; box-shadow: none; color: var(--muted); text-decoration: underline; padding: 10px 16px; font-weight: 800; }
+  .btn-ghost:active { transform: none; box-shadow: none; }
+  .btn-danger { color: #b42318; }
+
+  /* ---------- generic cards ---------- */
+  .card { background: #fff; border-radius: var(--radius); box-shadow: var(--shadow); padding: 26px; }
+  .screen { animation: fadeIn .35s ease-out both; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+  /* ---------- intro ---------- */
+  .intro { max-width: 800px; margin: 0 auto; text-align: center; padding-top: 34px; }
+  .vault-art { width: 190px; height: 190px; margin: 0 auto 8px; filter: drop-shadow(0 14px 22px rgba(31, 35, 71, .25)); }
+  .vault-art .spin { transform-origin: 100px 100px; animation: spin 16s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .title {
+    font-size: clamp(2.7rem, 8vw, 4.6rem); font-weight: 900; letter-spacing: -1.5px; line-height: 1.05;
+    background: linear-gradient(90deg, var(--coral), var(--violet) 55%, var(--sky));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    padding-bottom: 4px;
+  }
+  .tagline { font-size: 1.35rem; font-weight: 800; margin-top: 6px; }
+  .steps { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin: 22px 0 26px; }
+  .step { display: flex; align-items: center; gap: 10px; background: #fff; border-radius: 999px; padding: 8px 16px 8px 8px; font-weight: 800; box-shadow: 0 4px 12px rgba(31, 35, 71, .08); }
+  .step b { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; color: #fff; font-size: 1rem; }
+  .step:nth-child(1) b { background: var(--coral); } .step:nth-child(2) b { background: var(--sky); }
+  .step:nth-child(3) b { background: var(--mint); } .step:nth-child(4) b { background: var(--violet); }
+  .setup { display: grid; gap: 16px; justify-items: center; }
+  .field { display: grid; gap: 6px; text-align: left; width: 100%; max-width: 420px; }
+  .field span { font-weight: 800; font-size: .95rem; color: var(--muted); }
+  .text-input {
+    width: 100%; font-size: 1.25rem; font-weight: 800; padding: 13px 18px; border-radius: 16px;
+    border: 3px solid #e5e2f5; background: #fbfaff; color: var(--ink); outline: none;
+  }
+  .text-input:focus { border-color: var(--sky); background: #fff; }
+  .or { color: var(--muted); font-weight: 800; font-size: .95rem; }
+  .seg { display: inline-flex; background: #eeebfb; border-radius: 999px; padding: 4px; gap: 4px; }
+  .seg button { border: 0; background: transparent; border-radius: 999px; padding: 10px 20px; font-weight: 900; cursor: pointer; color: var(--muted); }
+  .seg button.on { background: #fff; color: var(--ink); box-shadow: 0 2px 8px rgba(31, 35, 71, .12); }
+  .race-names { display: grid; gap: 12px; width: 100%; max-width: 460px; }
+  .race-names .field { max-width: none; }
+  .race-names .field:nth-child(1) .text-input:focus { border-color: var(--team1); }
+  .race-names .field:nth-child(2) .text-input:focus { border-color: var(--team2); }
+  .race-names .field:nth-child(3) .text-input:focus { border-color: var(--team3); }
+  .rule { background: #fff8e6; border-radius: 16px; padding: 12px 16px; font-weight: 700; font-size: 1rem; color: #6b4d00; }
+  .link-row { margin-top: 26px; }
+
+  /* ---------- play: panels ---------- */
+  .panels { display: grid; gap: 24px; grid-template-columns: 1fr; max-width: 960px; margin: 0 auto; }
+  .panels.race { max-width: none; grid-template-columns: repeat(var(--n, 2), minmax(0, 1fr)); }
+  @media (max-width: 900px) { .panels.race { grid-template-columns: 1fr; } }
+  .panel {
+    --accent: var(--coral);
+    background: rgba(255, 255, 255, .72); border-radius: 30px; padding: 18px; box-shadow: var(--shadow);
+    border-top: 8px solid var(--accent); min-width: 0;
+  }
+  .panel.team-1 { --accent: var(--team1); } .panel.team-2 { --accent: var(--team2); } .panel.team-3 { --accent: var(--team3); }
+  .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+  .team-badge { background: var(--accent); color: #fff; font-weight: 900; padding: 8px 16px; border-radius: 999px; font-size: 1.05rem; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .progress { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .progress-text { font-weight: 900; font-size: 1.05rem; }
+  .locks { display: flex; gap: 6px; }
+  .lock { font-size: 1.5rem; opacity: .45; filter: grayscale(.4); transition: transform .3s ease, opacity .3s ease; }
+  .lock.current { opacity: 1; filter: none; transform: scale(1.18); animation: pulse 1.4s ease-in-out infinite; }
+  .lock.solved, .lock.skipped { opacity: 1; filter: none; }
+  @keyframes pulse { 0%, 100% { transform: scale(1.12); } 50% { transform: scale(1.28); } }
+
+  /* ---------- the door ---------- */
+  .door { position: relative; border-radius: 28px; }
+  .door-behind {
+    position: absolute; inset: 0; border-radius: 28px;
+    background: radial-gradient(circle at 50% 35%, #c7f7e2, var(--mint) 75%);
+    display: flex; align-items: center; justify-content: center; text-align: center; padding: 24px;
+    color: #073b2b; font-weight: 900; font-size: 2rem;
+  }
+  .unlocked-msg small { display: block; font-size: 1.15rem; font-weight: 800; margin-top: 10px; opacity: .9; }
+  .door-face {
+    position: relative; color: #fff; border-radius: 28px; padding: 26px 28px 22px;
+    background:
+      radial-gradient(circle at 20px 20px, var(--rivet) 6px, transparent 7px),
+      radial-gradient(circle at calc(100% - 20px) 20px, var(--rivet) 6px, transparent 7px),
+      radial-gradient(circle at 20px calc(100% - 20px), var(--rivet) 6px, transparent 7px),
+      radial-gradient(circle at calc(100% - 20px) calc(100% - 20px), var(--rivet) 6px, transparent 7px),
+      linear-gradient(160deg, #38447f, var(--door) 45%, var(--door2));
+    box-shadow: var(--shadow), inset 0 0 0 5px rgba(255, 255, 255, .07), inset 0 0 0 12px rgba(0, 0, 0, .14);
+    transform-origin: left center; backface-visibility: hidden;
+    transition: transform 1.1s cubic-bezier(.65, 0, .35, 1), opacity 1.1s ease;
+  }
+  .door.open .door-face { transform: perspective(1400px) rotateY(-84deg); opacity: .15; pointer-events: none; }
+  .door-face.enter { animation: slideIn .5s cubic-bezier(.2, .9, .3, 1.1) both; }
+  @keyframes slideIn { from { opacity: 0; transform: translateX(46px) scale(.98); } to { opacity: 1; transform: none; } }
+  .door-top { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+  .door-title { font-weight: 900; font-size: 1.35rem; color: var(--sun); }
+  .dial { flex: none; width: 62px; height: 62px; transition: transform 1.1s cubic-bezier(.65, 0, .35, 1); filter: drop-shadow(0 4px 6px rgba(0, 0, 0, .35)); }
+  .door.open .dial { transform: rotate(540deg); }
+  .door-prompt { margin-top: 8px; font-size: 1.1rem; font-weight: 700; color: #e6e9ff; }
+  .seq { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 20px; }
+  .chip {
+    display: inline-grid; place-items: center; min-width: 64px; padding: 8px 16px; border-radius: 16px;
+    background: #fff; color: var(--ink); font-weight: 900; font-size: 2rem; line-height: 1.1;
+    box-shadow: 0 5px 0 rgba(0, 0, 0, .3);
+  }
+  .chip.blank { background: var(--sun); color: #5a3d00; animation: blink 1.4s ease-in-out infinite; }
+  @keyframes blink { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+  .sep { color: rgba(255, 255, 255, .55); font-size: 2rem; font-weight: 900; }
+  .cipher {
+    margin-top: 20px; padding: 16px 18px; border-radius: 18px; background: rgba(255, 255, 255, .1);
+    font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Courier New", monospace;
+    font-size: 1.75rem; font-weight: 800; letter-spacing: 2px; line-height: 1.45; overflow-wrap: anywhere;
+    border: 2px dashed rgba(255, 209, 102, .55);
+  }
+  .shift-badge { display: inline-block; margin-top: 12px; background: var(--sun); color: #5a3d00; font-weight: 900; padding: 6px 14px; border-radius: 999px; }
+  .keystrip { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 14px; }
+  .keystrip span { display: grid; place-items: center; min-width: 34px; padding: 4px 6px; border-radius: 10px; background: rgba(255, 255, 255, .13); font-size: .9rem; line-height: 1.15; color: #dfe4ff; }
+  .keystrip span b { font-size: 1.05rem; color: #fff; }
+  .keystrip.decoder span b { color: var(--sun); }
+  .keystrip.decoder span { background: rgba(255, 255, 255, .18); }
+  .strip-caption { margin-top: 12px; font-size: .95rem; font-weight: 800; color: #cfd5ff; }
+  .answer-form { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 20px; }
+  .answer {
+    flex: 1 1 200px; min-width: 0; font-size: 1.35rem; font-weight: 800; padding: 13px 18px; border-radius: 16px;
+    border: 3px solid transparent; outline: none; color: var(--ink); background: #fff;
+  }
+  .answer:focus { border-color: var(--sun); }
+  .answer.shake { animation: shake .4s ease; }
+  @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-7px); } 75% { transform: translateX(7px); } }
+  .hint-row { margin-top: 14px; }
+  .hint-btn { background: rgba(255, 255, 255, .12); color: #fff; border: 0; border-radius: 999px; padding: 8px 14px; font-weight: 800; cursor: pointer; font-size: .95rem; }
+  .hint-btn:hover { background: rgba(255, 255, 255, .2); }
+  .hint-text { margin-top: 10px; background: #fff8e6; color: #6b4d00; border-radius: 14px; padding: 10px 14px; font-weight: 800; }
+  .feedback { min-height: 1.7em; margin-top: 12px; font-weight: 800; font-size: 1.1rem; color: #fff; }
+  .feedback.try { color: var(--sun); }
+  .feedback.ok { color: #b9f5dc; }
+  .skip-row { display: flex; justify-content: flex-end; margin-top: 8px; }
+  .skip-btn { background: none; border: 0; color: var(--muted); font-size: .92rem; font-weight: 700; cursor: pointer; opacity: .7; padding: 6px 10px; border-radius: 10px; }
+  .skip-btn:hover { opacity: 1; text-decoration: underline; }
+  .skip-btn.confirm { opacity: 1; color: #8a5a00; background: #fff3d6; text-decoration: none; }
+  .done-card { text-align: center; background: linear-gradient(160deg, #e8fff5, #c7f7e2); border-radius: 28px; padding: 34px 24px; box-shadow: var(--shadow); }
+  .done-card .big { font-size: 4rem; line-height: 1; animation: pop .7s cubic-bezier(.2, 1.4, .4, 1) both; }
+  .done-card h3 { font-size: 1.9rem; margin-top: 8px; color: #073b2b; }
+  .done-card p { font-weight: 800; font-size: 1.15rem; color: #0f5c43; margin-top: 6px; }
+  .race-actions { text-align: center; margin-top: 18px; }
+
+  /* ---------- debrief ---------- */
+  .debrief { max-width: 980px; margin: 0 auto; text-align: center; padding-top: 10px; }
+  .debrief h1 { font-size: clamp(2.4rem, 7vw, 4rem); font-weight: 900; animation: pop .8s cubic-bezier(.2, 1.4, .4, 1) both; }
+  @keyframes pop { from { transform: scale(.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .debrief-sub { font-size: 1.25rem; font-weight: 800; color: var(--muted); margin-top: 4px; }
+  .results { display: grid; gap: 14px; margin: 24px auto 0; text-align: left; max-width: 760px; }
+  .result { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; align-items: center; }
+  .result .medal { font-size: 2.4rem; line-height: 1; grid-row: span 3; }
+  .result .who { font-weight: 900; font-size: 1.35rem; }
+  .result .stats { font-weight: 800; color: var(--muted); }
+  .result .code-line { font-weight: 800; }
+  .result code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 1.15rem; background: #f1eefc; padding: 3px 10px; border-radius: 8px; letter-spacing: 1px; }
+  .result .tip-line { grid-column: 2; color: #0f5c43; font-weight: 800; background: #e8fff5; border-radius: 10px; padding: 6px 10px; }
+  .result.dnf .medal { opacity: .5; }
+  .code-help { margin-top: 12px; font-weight: 700; color: var(--muted); font-size: 1rem; }
+  .tips-title { margin-top: 36px; font-size: 1.6rem; font-weight: 900; }
+  .tips { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-top: 16px; text-align: left; }
+  .tip { padding: 22px; border-radius: 22px; background: #fff; box-shadow: var(--shadow); border-top: 6px solid var(--accent); font-weight: 700; font-size: 1.05rem; }
+  .tip .ico { font-size: 2rem; line-height: 1; margin-bottom: 10px; }
+  .tip:nth-child(1) { --accent: var(--coral); } .tip:nth-child(2) { --accent: var(--sky); }
+  .tip:nth-child(3) { --accent: var(--violet); } .tip:nth-child(4) { --accent: var(--mint); }
+  .debrief-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px; margin-top: 30px; }
+
+  /* ---------- leaderboard ---------- */
+  .board-screen { max-width: 900px; margin: 0 auto; padding-top: 22px; }
+  .board-screen h1 { font-size: 2.4rem; font-weight: 900; }
+  .board-help { margin-top: 8px; font-weight: 700; color: var(--muted); }
+  .code-form { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 18px; }
+  .code-form .text-input { flex: 1 1 240px; text-transform: uppercase; letter-spacing: 1px; }
+  .board-msg { min-height: 1.6em; margin-top: 10px; font-weight: 800; }
+  .board-msg.ok { color: #0f7a55; } .board-msg.err { color: #b42318; }
+  .table-wrap { overflow-x: auto; margin-top: 18px; background: #fff; border-radius: 20px; box-shadow: var(--shadow); }
+  table.board { width: 100%; border-collapse: collapse; font-size: 1.05rem; }
+  table.board th, table.board td { padding: 12px 14px; text-align: left; border-bottom: 1px solid #efedf8; white-space: nowrap; }
+  table.board th { font-size: .85rem; letter-spacing: .5px; text-transform: uppercase; color: var(--muted); }
+  table.board tr:last-child td { border-bottom: 0; }
+  table.board td.rank { font-weight: 900; font-size: 1.2rem; width: 60px; }
+  table.board td.name { font-weight: 900; }
+  table.board td.time { font-family: ui-monospace, Menlo, Consolas, monospace; font-weight: 800; }
+  table.board .locks-mini { letter-spacing: 1px; }
+  table.board .rm { background: none; border: 0; color: #b8b3d6; cursor: pointer; font-size: 1.1rem; padding: 2px 8px; border-radius: 8px; }
+  table.board .rm:hover { color: #b42318; background: #fff0ee; }
+  .empty { padding: 30px; text-align: center; color: var(--muted); font-weight: 800; }
+  .board-actions { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; margin-top: 18px; }
+
+  /* ---------- confetti ---------- */
+  .confetti { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 50; }
+  .confetti i { position: absolute; top: -24px; width: 10px; height: 16px; border-radius: 3px; animation: fall linear forwards; }
+  @keyframes fall { to { transform: translateY(110vh) rotate(720deg); } }
+
+  @media (max-width: 560px) {
+    body { font-size: 17px; }
+    .topbar { padding: 8px 14px; gap: 8px; }
+    .brand { font-size: 1rem; }
+    #modePill { display: none; }
+    .chip { font-size: 1.55rem; min-width: 52px; padding: 6px 12px; }
+    .sep { font-size: 1.5rem; }
+    .door-face { padding: 20px 16px 18px; }
+    .cipher { font-size: 1.35rem; letter-spacing: 1px; }
+    .btn-xl { font-size: 1.3rem; padding: 16px 32px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition-duration: .01ms !important; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar" id="topbar" hidden>
+  <div class="brand">🔐 Crack the Vault</div>
+  <div class="topbar-right">
+    <span class="pill door" id="doorPill">Door 1 of 4</span>
+    <span class="pill" id="modePill"></span>
+    <span class="pill timer" id="timer" title="Time so far (counts up, no limit)">⏱ 00:00</span>
+    <button type="button" class="quit-btn" id="btnQuit" title="Stop this game and go back to the start">✕ Quit</button>
+  </div>
+</header>
+
+<main id="app">
+
+  <!-- ============ INTRO ============ -->
+  <section class="screen intro" id="screen-intro">
+    <div class="vault-art" aria-hidden="true">
+      <svg viewBox="0 0 200 200" width="190" height="190">
+        <defs>
+          <radialGradient id="vg" cx="38%" cy="32%" r="80%">
+            <stop offset="0" stop-color="#4c589a"/><stop offset="1" stop-color="#1a2244"/>
+          </radialGradient>
+        </defs>
+        <circle cx="100" cy="100" r="94" fill="#ffd166"/>
+        <circle cx="100" cy="100" r="82" fill="url(#vg)"/>
+        <g fill="#1a2244">
+          <circle cx="100" cy="16" r="6"/><circle cx="184" cy="100" r="6"/><circle cx="100" cy="184" r="6"/><circle cx="16" cy="100" r="6"/>
+        </g>
+        <circle cx="100" cy="100" r="62" fill="none" stroke="#ffd166" stroke-width="4" stroke-dasharray="7 9"/>
+        <g class="spin" stroke="#ffd166" stroke-width="11" stroke-linecap="round">
+          <line x1="100" y1="52" x2="100" y2="148"/><line x1="52" y1="100" x2="148" y2="100"/>
+          <line x1="66" y1="66" x2="134" y2="134"/><line x1="134" y1="66" x2="66" y2="134"/>
+        </g>
+        <circle cx="100" cy="100" r="20" fill="#ffd166"/>
+        <circle cx="100" cy="100" r="9" fill="#1a2244"/>
+      </svg>
+    </div>
+    <h1 class="title">Crack the Vault</h1>
+    <p class="tagline">Solve each lock to open the vault. Work together!</p>
+
+    <div class="steps" aria-label="The four doors">
+      <div class="step"><b>1</b> Number pattern</div>
+      <div class="step"><b>2</b> Growing pattern</div>
+      <div class="step"><b>3</b> Letter code</div>
+      <div class="step"><b>4</b> Secret message</div>
+    </div>
+
+    <div class="card">
+      <!-- Solo team -->
+      <form class="setup" id="soloSetup" autocomplete="off">
+        <label class="field">
+          <span>Your team name</span>
+          <input class="text-input" id="teamName" maxlength="24" placeholder="e.g. The Codebreakers">
+        </label>
+        <button type="submit" class="btn btn-primary btn-xl" id="btnStart">▶ Start</button>
+        <div class="or">or</div>
+        <button type="button" class="btn" id="btnRace">⚔️ Team Race · 2–3 teams on this screen</button>
+      </form>
+
+      <!-- Race setup -->
+      <form class="setup" id="raceSetup" autocomplete="off" hidden>
+        <h2>⚔️ Team Race</h2>
+        <p class="rule">Teams race side by side on this screen, each with their own vault.
+          Winner = most doors <b>cracked</b> (skipped doors don't count). Fastest time breaks ties.</p>
+        <div class="seg" id="raceCount" role="group" aria-label="Number of teams">
+          <button type="button" data-n="2" class="on">2 teams</button>
+          <button type="button" data-n="3">3 teams</button>
+        </div>
+        <div class="race-names" id="raceNames"></div>
+        <button type="submit" class="btn btn-primary btn-xl">🏁 Start the Race</button>
+        <button type="button" class="btn btn-ghost" id="btnRaceCancel">← Back</button>
+      </form>
+    </div>
+
+    <div class="link-row">
+      <button type="button" class="btn btn-ghost" id="btnBoard">🏆 Class Leaderboard (for the teacher)</button>
+    </div>
+  </section>
+
+  <!-- ============ PLAY ============ -->
+  <section class="screen" id="screen-play" hidden>
+    <div class="panels" id="panels"></div>
+    <div class="race-actions" id="raceActions" hidden>
+      <button type="button" class="btn btn-ghost" id="btnEndRace">Finish the race now and show results ›</button>
+    </div>
+  </section>
+
+  <!-- ============ DEBRIEF ============ -->
+  <section class="screen debrief" id="screen-debrief" hidden>
+    <h1>🎉 Vault Unlocked!</h1>
+    <p class="debrief-sub" id="debriefSub"></p>
+    <div class="results" id="results"></div>
+    <p class="code-help" id="codeHelp">Tell your teacher your <b>Vault Code</b> to get on the Class Leaderboard.</p>
+
+    <h2 class="tips-title">🛡️ What the vault taught us</h2>
+    <div class="tips">
+      <div class="tip"><div class="ico">🔑</div>Use long, random passwords — not predictable patterns (like the sequences you just solved!).</div>
+      <div class="tip"><div class="ico">🔁</div>Never reuse the same password across sites.</div>
+      <div class="tip"><div class="ico">🧩</div>Codes and ciphers are just patterns — and predictable human passwords are patterns too, which is why they're easy to crack.</div>
+      <div class="tip"><div class="ico">📱</div>Enable two-factor authentication where possible.</div>
+    </div>
+
+    <div class="debrief-actions">
+      <button type="button" class="btn btn-primary btn-xl" id="btnAgain">🔁 Play Again</button>
+      <button type="button" class="btn" id="btnHome">🏠 Change teams</button>
+      <button type="button" class="btn" id="btnDebriefBoard">🏆 Class Leaderboard</button>
+    </div>
+  </section>
+
+  <!-- ============ LEADERBOARD ============ -->
+  <section class="screen board-screen" id="screen-board" hidden>
+    <h1>🏆 Class Leaderboard</h1>
+    <p class="board-help">Teams that finish on <b>this computer</b> appear here automatically.
+      For teams on other computers, type in the <b>Vault Code</b> from their finish screen.
+      Ranking: most doors cracked first, then fastest time.</p>
+    <form class="code-form" id="codeForm" autocomplete="off">
+      <input class="text-input" id="codeInput" placeholder="Vault Code, e.g. ROCKETS-2ZK-9C" aria-label="Vault Code">
+      <button type="submit" class="btn btn-mint">＋ Add team</button>
+    </form>
+    <div class="board-msg" id="boardMsg" aria-live="polite"></div>
+    <div class="table-wrap">
+      <table class="board" id="boardTable">
+        <thead><tr><th>#</th><th>Team</th><th>Doors cracked</th><th>Time</th><th>Skips</th><th>Added</th><th></th></tr></thead>
+        <tbody id="boardBody"></tbody>
+      </table>
+      <div class="empty" id="boardEmpty">No results yet. Finish the vault, or add a team's Vault Code above.</div>
+    </div>
+    <div class="board-actions">
+      <button type="button" class="btn" id="btnBoardBack">← Back</button>
+      <button type="button" class="btn btn-ghost btn-danger" id="btnBoardClear">Clear the board</button>
+    </div>
+  </section>
+
+</main>
+
+<!-- ==================== PUZZLE CORE (pure functions, no DOM) ==================== -->
+<script id="vault-core">
+const VaultCore = (function () {
+  'use strict';
+
+  const WORDS = ['SAFE', 'LOCK', 'CODE', 'SECURE', 'STRONG'];
+  const TIPS = [
+    'MAKE YOUR PASSWORD STRONG',
+    'NEVER SHARE YOUR PASSWORD',
+    'THINK BEFORE YOU CLICK',
+    'KEEP PRIVATE INFO PRIVATE',
+    'LOG OUT ON SHARED COMPUTERS',
+    'DO NOT REUSE PASSWORDS',
+    'UPDATE YOUR APPS OFTEN',
+    'TURN ON TWO FACTOR LOGIN',
+    'CHECK LINKS BEFORE YOU TAP',
+    'BE KIND AND SAFE ONLINE'
+  ];
+  const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+  function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+  function pick(arr) { return arr[randInt(0, arr.length - 1)]; }
+
+  // Door 1: arithmetic sequence. First term 1-10, common difference 2-6.
+  // The blank is the 5th or 6th term, so 4 or 5 terms are shown before it.
+  function makeArithmetic() {
+    const first = randInt(1, 10), diff = randInt(2, 6), blankPos = pick([5, 6]);
+    const terms = [];
+    for (let i = 1; i < blankPos; i++) terms.push(first + diff * (i - 1));
+    const answer = first + diff * (blankPos - 1);
+    return {
+      type: 'arith', kind: 'number', first, diff, blankPos, terms, answer: String(answer),
+      title: 'Door 1 · The Number Pattern',
+      prompt: 'Find the missing number. Each number goes up by the same amount.',
+      hint: 'From ' + terms[0] + ' to ' + terms[1] + ' is +' + diff + '. Keep adding ' + diff + ' each step!',
+      reveal: 'The missing number was ' + answer + ' (each step adds ' + diff + ').',
+      placeholder: 'Missing number'
+    };
+  }
+
+  // Door 2: geometric sequence. First term 1-5, ratio 2-4.
+  // Blank is the 5th or 6th term; the 6th is only used while the numbers stay friendly (<= 3000).
+  function makeGeometric() {
+    const first = randInt(1, 5), ratio = randInt(2, 4);
+    let blankPos = pick([5, 6]);
+    if (first * Math.pow(ratio, 5) > 3000) blankPos = 5;
+    const terms = [];
+    for (let i = 1; i < blankPos; i++) terms.push(first * Math.pow(ratio, i - 1));
+    const answer = first * Math.pow(ratio, blankPos - 1);
+    return {
+      type: 'geo', kind: 'number', first, ratio, blankPos, terms, answer: String(answer),
+      title: 'Door 2 · The Growing Pattern',
+      prompt: 'Find the missing number. This time each number is multiplied by the same amount.',
+      hint: 'From ' + terms[0] + ' to ' + terms[1] + ' you multiply by ' + ratio + '. Keep multiplying by ' + ratio + '!',
+      reveal: 'The missing number was ' + answer + ' (each step multiplies by ' + ratio + ').',
+      placeholder: 'Missing number'
+    };
+  }
+
+  // Door 3: A=1 ... Z=26 substitution, numbers separated by dashes so "1-2" can never read as "12".
+  function letterToNumber(ch) { return ch.charCodeAt(0) - 64; }
+  function numbersToWord(nums) { return nums.map(function (n) { return ALPHABET[n - 1] || '?'; }).join(''); }
+  function makeSubstitution() {
+    const word = pick(WORDS);
+    const code = word.split('').map(letterToNumber);
+    return {
+      type: 'sub', kind: 'word', word, code, display: code.join('-'), answer: word,
+      title: 'Door 3 · The Letter Code',
+      prompt: 'Each number stands for a letter: A = 1, B = 2 … Z = 26. Decode the word.',
+      hint: 'Find each number in the key. ' + code[0] + ' is the letter ' + word[0] + ', so the word starts with ' + word[0] + '.',
+      reveal: 'The word was ' + word + '.',
+      placeholder: 'Decoded word'
+    };
+  }
+
+  // Door 4: Caesar cipher. Letters are shifted FORWARD by `shift` to encode, so decoding shifts back.
+  function shiftText(text, shift) {
+    return String(text).replace(/[A-Z]/g, function (ch) {
+      return ALPHABET[(((ch.charCodeAt(0) - 65 + shift) % 26) + 26) % 26];
+    });
+  }
+  function makeCaesar() {
+    const tip = pick(TIPS), shift = randInt(3, 8);
+    const encoded = shiftText(tip, shift);
+    const example = [0, 1, 2].map(function (i) { return ALPHABET[(i + shift) % 26] + ' → ' + ALPHABET[i]; }).join(', ');
+    return {
+      type: 'caesar', kind: 'sentence', tip, shift, encoded, answer: tip,
+      title: 'Final Door · The Shifted Message',
+      prompt: 'This safety tip was written with a Caesar cipher: every letter was pushed forward through the alphabet by the same shift. Shift each letter back to read it.',
+      hint: 'A shift of ' + shift + ' means ' + example + '. Do that for every letter. The decoder strip shows them all.',
+      reveal: 'The message was: ' + tip,
+      placeholder: 'Decoded sentence'
+    };
+  }
+
+  function makeDoors() { return [makeArithmetic(), makeGeometric(), makeSubstitution(), makeCaesar()]; }
+
+  // ---- answer checking (forgiving about case, spaces and punctuation) ----
+  function parseNumber(s) {
+    const m = String(s).replace(/[^\d-]/g, '');
+    if (!m || m === '-') return null;
+    const n = parseInt(m, 10);
+    return Number.isFinite(n) ? n : null;
+  }
+  function normalizeText(s) { return String(s).toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim(); }
+  function check(puzzle, input) {
+    if (puzzle.kind === 'number') { const n = parseNumber(input); return n !== null && n === Number(puzzle.answer); }
+    if (puzzle.kind === 'word') return normalizeText(input).replace(/ /g, '') === puzzle.answer;
+    return normalizeText(input) === normalizeText(puzzle.answer);
+  }
+
+  // ---- Vault Codes: a short, checksummed token teams can read out to the teacher ----
+  // Crockford-style base32 (no I, L, O, U) so codes are easy to read aloud.
+  const B32 = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+  function encNum(n, minLen) {
+    n = Math.max(0, Math.floor(n)); let s = '';
+    do { s = B32[n % 32] + s; n = Math.floor(n / 32); } while (n > 0);
+    while (s.length < (minLen || 1)) s = '0' + s;
+    return s;
+  }
+  function fixLookalikes(s) { return String(s).toUpperCase().replace(/[IL]/g, '1').replace(/O/g, '0'); }
+  function decNum(s) {
+    let n = 0;
+    for (const ch of fixLookalikes(s)) { const v = B32.indexOf(ch); if (v < 0) return null; n = n * 32 + v; }
+    return n;
+  }
+  function checksum(str) {
+    let h = 7;
+    for (let i = 0; i < str.length; i++) h = (h * 33 + str.charCodeAt(i) * (i + 1)) % 1024;
+    return encNum(h, 2);
+  }
+  function cleanName(name) {
+    const n = String(name || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10);
+    return n || 'TEAM';
+  }
+  function makeVaultCode(name, seconds, skips) {
+    const payload = encNum(Math.round(seconds) * 8 + Math.min(7, Math.max(0, skips | 0)), 3);
+    const body = cleanName(name) + '-' + payload;
+    return body + '-' + checksum(body);
+  }
+  function parseVaultCode(raw) {
+    const s = String(raw || '').toUpperCase().replace(/[^A-Z0-9-]/g, '');
+    const parts = s.split('-').filter(Boolean);
+    if (parts.length !== 3) return { ok: false, reason: 'A Vault Code has three parts with dashes, like ROCKETS-2ZK-9C.' };
+    const name = parts[0], payload = fixLookalikes(parts[1]), chk = fixLookalikes(parts[2]);
+    if (name.length > 10) return { ok: false, reason: 'The team-name part is too long. Read the code exactly as shown.' };
+    const body = name + '-' + payload;
+    const value = decNum(payload);
+    if (value === null || checksum(body) !== chk) {
+      return { ok: false, reason: "That code doesn't check out. Ask the team to read it again carefully." };
+    }
+    return { ok: true, name, seconds: Math.floor(value / 8), skips: value % 8, code: body + '-' + checksum(body) };
+  }
+
+  return {
+    WORDS, TIPS, ALPHABET,
+    makeArithmetic, makeGeometric, makeSubstitution, makeCaesar, makeDoors,
+    shiftText, numbersToWord, parseNumber, normalizeText, check,
+    makeVaultCode, parseVaultCode, cleanName
+  };
+})();
+</script>
+
+<!-- ==================== GAME (DOM, screens, multiplayer) ==================== -->
+<script>
+(function () {
+  'use strict';
+  const C = VaultCore;
+  const $ = (sel, root) => (root || document).querySelector(sel);
+  const $$ = (sel, root) => Array.prototype.slice.call((root || document).querySelectorAll(sel));
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  const BOARD_KEY = 'crackTheVault.board.v1';
+  const TEAM_EMOJI = ['🚀', '🦊', '🐉'];
+  const REDUCED = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const UNLOCK_DELAY = 1500;   // ms before auto-advancing after a correct answer
+  const SKIP_DELAY = 3200;     // a little longer so the revealed answer can be read
+  const TOTAL_DOORS = 4;
+
+  const state = {
+    mode: 'solo', teams: [], startedAt: 0, timerId: null, elapsed: 0,
+    finishedCount: 0, over: false, boardReturn: 'intro', raceCount: 2
+  };
+
+  // ---------------------------------------------------------------- screens
+  const screens = { intro: $('#screen-intro'), play: $('#screen-play'), debrief: $('#screen-debrief'), board: $('#screen-board') };
+  function showScreen(name) {
+    Object.keys(screens).forEach(k => { screens[k].hidden = k !== name; });
+    $('#topbar').hidden = !(name === 'play' || name === 'debrief');
+    $('#btnQuit').hidden = name !== 'play';
+    if (name !== 'debrief') $$('.confetti').forEach(el => el.remove());
+    window.scrollTo(0, 0);
+    if (name === 'board') startBoardWatch(); else stopBoardWatch();
+  }
+
+  // ---------------------------------------------------------------- timer
+  function fmtTime(sec) {
+    sec = Math.max(0, Math.floor(sec));
+    return String(Math.floor(sec / 60)).padStart(2, '0') + ':' + String(sec % 60).padStart(2, '0');
+  }
+  function elapsedSec() { return (Date.now() - state.startedAt) / 1000; }
+  function tick() { state.elapsed = elapsedSec(); $('#timer').textContent = '⏱ ' + fmtTime(state.elapsed); }
+  function startTimer() { stopTimer(); state.startedAt = Date.now(); tick(); state.timerId = setInterval(tick, 250); }
+  function stopTimer() { if (state.timerId) clearInterval(state.timerId); state.timerId = null; }
+
+  // ---------------------------------------------------------------- game setup
+  function startGame(mode, names) {
+    state.mode = mode; state.over = false; state.finishedCount = 0;
+    state.teams = names.map((name, i) => ({
+      id: i, name, emoji: TEAM_EMOJI[i % TEAM_EMOJI.length],
+      doors: C.makeDoors(),          // fresh random puzzles for every team, every game
+      current: 0, results: [], skips: 0, wrong: 0, busy: false,
+      doneAt: null, rank: null, code: null, el: null
+    }));
+    $('#modePill').textContent = mode === 'race' ? '🏁 Team Race' : state.teams[0].emoji + ' ' + state.teams[0].name;
+    $('#doorPill').hidden = mode === 'race';
+    $('#raceActions').hidden = true;
+    buildPanels();
+    showScreen('play');
+    startTimer();
+    focusTeam(state.teams[0], true);
+  }
+
+  function buildPanels() {
+    const host = $('#panels');
+    host.innerHTML = '';
+    host.classList.toggle('race', state.mode === 'race');
+    host.style.setProperty('--n', state.teams.length);
+    state.teams.forEach(team => {
+      team.el = makePanel(team);
+      host.appendChild(team.el);
+      renderDoor(team, false);
+    });
+  }
+
+  function makePanel(team) {
+    const art = document.createElement('article');
+    art.className = 'panel team-' + (team.id + 1);
+    art.setAttribute('aria-label', 'Vault for ' + team.name);
+    art.innerHTML =
+      '<header class="panel-head">' +
+        '<div class="team-badge">' + esc(team.emoji) + ' ' + esc(team.name) + '</div>' +
+        '<div class="progress"><span class="progress-text"></span><div class="locks">' +
+          [0, 1, 2, 3].map(i => '<span class="lock" data-i="' + i + '">🔒</span>').join('') +
+        '</div></div>' +
+      '</header>' +
+      '<div class="door-wrap">' +
+        '<div class="door">' +
+          '<div class="door-behind"><div class="unlocked-msg"></div></div>' +
+          '<div class="door-face"></div>' +
+        '</div>' +
+        '<div class="skip-row"><button type="button" class="skip-btn">skip this door ›</button></div>' +
+      '</div>';
+    $('.skip-btn', art).addEventListener('click', () => onSkip(team));
+    return art;
+  }
+
+  const DIAL_SVG =
+    '<svg class="dial" viewBox="0 0 100 100" aria-hidden="true">' +
+      '<circle cx="50" cy="50" r="45" fill="#141b3a" stroke="#ffd166" stroke-width="6"/>' +
+      '<g stroke="#ffd166" stroke-width="4" stroke-linecap="round">' +
+        '<line x1="50" y1="12" x2="50" y2="24"/><line x1="88" y1="50" x2="76" y2="50"/>' +
+        '<line x1="50" y1="88" x2="50" y2="76"/><line x1="12" y1="50" x2="24" y2="50"/>' +
+      '</g>' +
+      '<path d="M50 50 L50 30" stroke="#fff" stroke-width="6" stroke-linecap="round"/>' +
+      '<circle cx="50" cy="50" r="10" fill="#ffd166"/>' +
+    '</svg>';
+
+  // ---------------------------------------------------------------- doors
+  function doorMarkup(p) {
+    let display = '', extra = '';
+    if (p.kind === 'number') {
+      display = '<div class="seq" aria-label="Sequence">' +
+        p.terms.map(t => '<span class="chip">' + t + '</span>').join('<span class="sep">,</span>') +
+        '<span class="sep">,</span><span class="chip blank" aria-label="missing number">?</span></div>';
+    } else if (p.type === 'sub') {
+      display = '<div class="seq" aria-label="Coded word ' + esc(p.display) + '">' +
+        p.code.map(n => '<span class="chip">' + n + '</span>').join('<span class="sep">–</span>') + '</div>';
+      extra = '<div class="strip-caption">Key: letter on top, its number below</div>' +
+        '<div class="keystrip">' + C.ALPHABET.split('').map((L, i) => '<span><b>' + L + '</b>' + (i + 1) + '</span>').join('') + '</div>';
+    } else {
+      display = '<div class="cipher" aria-label="Coded message">' + esc(p.encoded) + '</div>' +
+        '<div class="shift-badge">Shift used: ' + p.shift + '</div>';
+      extra = '<div class="decoder-wrap" hidden><div class="strip-caption">Decoder: coded letter on top → real letter below</div>' +
+        '<div class="keystrip decoder">' + C.ALPHABET.split('').map(L => '<span><b>' + L + '</b>' + C.shiftText(L, -p.shift) + '</span>').join('') + '</div></div>';
+    }
+    return '<div class="door-top"><div class="door-title">' + esc(p.title) + '</div>' + DIAL_SVG + '</div>' +
+      '<p class="door-prompt">' + esc(p.prompt) + '</p>' + display + extra +
+      '<form class="answer-form" autocomplete="off">' +
+        '<input class="answer" type="text" ' + (p.kind === 'number' ? 'inputmode="numeric" ' : '') +
+          'placeholder="' + esc(p.placeholder) + '" aria-label="Your answer" autocomplete="off" autocapitalize="characters" spellcheck="false">' +
+        '<button type="submit" class="btn btn-primary">Unlock 🔓</button>' +
+      '</form>' +
+      '<div class="hint-row"><button type="button" class="hint-btn">💡 Need a hint?</button><div class="hint-text" hidden>' + esc(p.hint) + '</div></div>' +
+      '<div class="feedback" aria-live="polite"></div>';
+  }
+
+  function renderDoor(team, animateIn) {
+    const idx = team.current, p = team.doors[idx];
+    const door = $('.door', team.el), face = $('.door-face', team.el);
+
+    // Reset the swing without animating it back.
+    face.style.transition = 'none';
+    door.classList.remove('open');
+    void face.offsetWidth;
+    face.style.transition = '';
+
+    $('.progress-text', team.el).textContent = 'Door ' + (idx + 1) + ' of ' + TOTAL_DOORS;
+    if (state.mode === 'solo') $('#doorPill').textContent = 'Door ' + (idx + 1) + ' of ' + TOTAL_DOORS;
+    $$('.lock', team.el).forEach((lk, i) => {
+      const r = team.results[i];
+      lk.textContent = r === 'solved' ? '🔓' : r === 'skipped' ? '⏭️' : '🔒';
+      lk.className = 'lock' + (r ? ' ' + r : '') + (i === idx ? ' current' : '');
+    });
+
+    face.innerHTML = doorMarkup(p);
+    $('form', face).addEventListener('submit', e => { e.preventDefault(); onSubmit(team); });
+    $('.hint-btn', face).addEventListener('click', () => revealHint(team));
+    resetSkip(team);
+
+    if (animateIn && !REDUCED) { face.classList.remove('enter'); void face.offsetWidth; face.classList.add('enter'); }
+  }
+
+  function focusTeam(team, force) {
+    const input = $('.answer', team.el);
+    if (!input) return;
+    const active = document.activeElement;
+    const free = !active || active === document.body || team.el.contains(active);
+    if (force || free) input.focus();
+  }
+
+  function setFeedback(team, msg, cls) {
+    const fb = $('.feedback', team.el);
+    if (!fb) return;
+    fb.textContent = msg;
+    fb.className = 'feedback' + (cls ? ' ' + cls : '');
+  }
+
+  function revealHint(team) {
+    const face = $('.door-face', team.el);
+    const t = $('.hint-text', face), d = $('.decoder-wrap', face), b = $('.hint-btn', face);
+    if (t) t.hidden = false;
+    if (d) d.hidden = false;
+    if (b) b.hidden = true;
+  }
+
+  const TRY_AGAIN = ['Not quite — try again! 💪', 'Close! Have another go 🔍', "Keep going — you've got this! ✨"];
+
+  function onSubmit(team) {
+    if (team.busy || state.over || team.doneAt !== null) return;
+    const p = team.doors[team.current];
+    const input = $('.answer', team.el);
+    if (!input.value.trim()) { setFeedback(team, 'Type your answer first 🙂', 'try'); input.focus(); return; }
+    if (C.check(p, input.value)) { unlockDoor(team, 'solved'); return; }
+    team.wrong++;
+    setFeedback(team, TRY_AGAIN[(team.wrong - 1) % TRY_AGAIN.length], 'try');
+    input.classList.remove('shake'); void input.offsetWidth; input.classList.add('shake');
+    input.select();
+    if (team.wrong >= 2) revealHint(team);
+  }
+
+  // Skip is a two-step button so a stray click can't skip a door.
+  function resetSkip(team) {
+    const b = $('.skip-btn', team.el);
+    if (!b) return;
+    b.textContent = 'skip this door ›';
+    b.classList.remove('confirm');
+    b.disabled = false;
+    if (team.skipTimer) { clearTimeout(team.skipTimer); team.skipTimer = null; }
+  }
+  function onSkip(team) {
+    if (team.busy || state.over || team.doneAt !== null) return;
+    const b = $('.skip-btn', team.el);
+    if (!b.classList.contains('confirm')) {
+      b.textContent = 'Sure? Click again to skip';
+      b.classList.add('confirm');
+      team.skipTimer = setTimeout(() => resetSkip(team), 3500);
+      return;
+    }
+    resetSkip(team);
+    unlockDoor(team, 'skipped');
+  }
+
+  function unlockDoor(team, how) {
+    team.busy = true;
+    const p = team.doors[team.current];
+    team.results[team.current] = how;
+    if (how === 'skipped') team.skips++;
+
+    $$('.answer, .answer-form button, .skip-btn, .hint-btn', team.el).forEach(x => { x.disabled = true; });
+    $('.unlocked-msg', team.el).innerHTML = how === 'solved'
+      ? '✅ Unlocked!<small>' + esc(p.answer) + '</small>'
+      : '⏭️ Skipped<small>' + esc(p.reveal) + '</small>';
+    setFeedback(team, how === 'solved' ? '🎉 Correct! The door is opening…' : '', 'ok');
+
+    const lk = $$('.lock', team.el)[team.current];
+    lk.textContent = how === 'solved' ? '🔓' : '⏭️';
+    lk.className = 'lock ' + how;
+    $('.door', team.el).classList.add('open');
+
+    const delay = REDUCED ? 700 : (how === 'solved' ? UNLOCK_DELAY : SKIP_DELAY);
+    setTimeout(() => {
+      team.busy = false; team.current++; team.wrong = 0;
+      if (team.current >= TOTAL_DOORS) finishTeam(team);
+      else { renderDoor(team, true); focusTeam(team, false); }
+    }, delay);
+  }
+
+  function crackedCount(team) { return team.results.filter(r => r === 'solved').length; }
+  function ordinal(n) { return n + (n === 1 ? 'st' : n === 2 ? 'nd' : n === 3 ? 'rd' : 'th'); }
+
+  function finishTeam(team) {
+    team.doneAt = elapsedSec();
+    team.rank = ++state.finishedCount;
+    team.code = C.makeVaultCode(team.name, team.doneAt, team.skips);
+    $('.progress-text', team.el).textContent = 'Vault open!';
+    if (state.mode === 'solo') $('#doorPill').textContent = 'Vault open!';
+    $('.door-wrap', team.el).innerHTML =
+      '<div class="done-card"><div class="big">🏆</div><h3>Vault cracked!</h3>' +
+      '<p>' + fmtTime(team.doneAt) + ' · ' + crackedCount(team) + '/' + TOTAL_DOORS + ' doors cracked</p>' +
+      (state.mode === 'race' ? '<p>' + ordinal(team.rank) + ' to finish' + (state.finishedCount === 1 ? ' — other teams, keep going!' : '') + '</p>' : '') +
+      '</div>';
+    team.el.classList.add('finished');
+    recordResult(team);
+
+    if (state.teams.every(t => t.doneAt !== null)) { endGame(); return; }
+    $('#raceActions').hidden = false;
+    const next = state.teams.find(t => t.doneAt === null);
+    if (next) focusTeam(next, false);
+  }
+
+  function endGame() {
+    if (state.over) return;
+    state.over = true;
+    stopTimer(); tick();
+    state.teams.forEach(t => { if (t.doneAt === null) $$('.answer, .answer-form button, .skip-btn', t.el).forEach(x => { x.disabled = true; }); });
+    setTimeout(showDebrief, REDUCED ? 300 : 1200);
+  }
+
+  // ---------------------------------------------------------------- debrief
+  function rankTeams(teams) {
+    return teams.slice().sort((a, b) => {
+      const d = crackedCount(b) - crackedCount(a);
+      if (d) return d;
+      const ta = a.doneAt === null ? Infinity : a.doneAt, tb = b.doneAt === null ? Infinity : b.doneAt;
+      return ta - tb;
+    });
+  }
+
+  function showDebrief() {
+    showScreen('debrief');
+    const ranked = rankTeams(state.teams);
+    const medals = ['🥇', '🥈', '🥉'];
+    $('#debriefSub').textContent = state.mode === 'race'
+      ? 'Race finished in ' + fmtTime(state.elapsed) + ' — here are the results!'
+      : 'Team ' + state.teams[0].name + ' cracked the vault in ' + fmtTime(state.elapsed) + '!';
+    $('#results').innerHTML = ranked.map((t, i) => {
+      const finished = t.doneAt !== null;
+      const tip = t.doors[3].tip;
+      return '<div class="card result' + (finished ? '' : ' dnf') + '">' +
+        '<div class="medal">' + (state.mode === 'race' ? (finished ? (medals[i] || '🏅') : '⏳') : '🏆') + '</div>' +
+        '<div class="who">' + esc(t.emoji) + ' ' + esc(t.name) + '</div>' +
+        '<div class="stats">' + (finished
+          ? fmtTime(t.doneAt) + ' · ' + crackedCount(t) + '/' + TOTAL_DOORS + ' doors cracked' + (t.skips ? ' · ' + t.skips + ' skipped' : '')
+          : 'Did not finish · ' + crackedCount(t) + '/' + TOTAL_DOORS + ' doors cracked') + '</div>' +
+        (finished ? '<div class="code-line">Vault Code: <code>' + esc(t.code) + '</code></div>' : '<div class="code-line muted">No Vault Code (vault not opened)</div>') +
+        '<div class="tip-line">🔓 The message behind the final door: “' + esc(tip) + '”</div>' +
+      '</div>';
+    }).join('');
+    $('#codeHelp').hidden = !ranked.some(t => t.doneAt !== null);
+    if (!REDUCED) confetti();
+  }
+
+  function confetti() {
+    const colors = ['#ff6b6b', '#ffd166', '#22c48b', '#3aa7f0', '#8b5cf6', '#ff8f6b'];
+    const host = document.createElement('div');
+    host.className = 'confetti'; host.setAttribute('aria-hidden', 'true');
+    for (let i = 0; i < 110; i++) {
+      const piece = document.createElement('i');
+      piece.style.left = Math.random() * 100 + '%';
+      piece.style.background = colors[i % colors.length];
+      piece.style.animationDuration = (2.6 + Math.random() * 2.2) + 's';
+      piece.style.animationDelay = (Math.random() * 1.4) + 's';
+      piece.style.transform = 'rotate(' + Math.random() * 360 + 'deg)';
+      piece.style.width = (7 + Math.random() * 7) + 'px';
+      piece.style.height = (10 + Math.random() * 10) + 'px';
+      host.appendChild(piece);
+    }
+    document.body.appendChild(host);
+    setTimeout(() => host.remove(), 6500);
+  }
+
+  // ---------------------------------------------------------------- class leaderboard (localStorage)
+  function loadBoard() {
+    try { const arr = JSON.parse(localStorage.getItem(BOARD_KEY) || '[]'); return Array.isArray(arr) ? arr : []; }
+    catch (e) { return []; }
+  }
+  function saveBoard(arr) {
+    try { localStorage.setItem(BOARD_KEY, JSON.stringify(arr)); return true; } catch (e) { return false; }
+  }
+  function addBoardEntry(entry) {
+    const arr = loadBoard();
+    if (arr.some(e => e.code === entry.code)) return 'dup';
+    arr.push(entry);
+    return saveBoard(arr) ? 'ok' : 'fail';
+  }
+  function recordResult(team) {
+    addBoardEntry({ code: team.code, name: team.name, seconds: Math.round(team.doneAt), skips: team.skips, at: Date.now(), src: 'device' });
+  }
+  function sortedBoard() {
+    return loadBoard().sort((a, b) => ((TOTAL_DOORS - b.skips) - (TOTAL_DOORS - a.skips)) || (a.seconds - b.seconds) || (a.at - b.at));
+  }
+  function renderBoard() {
+    const rows = sortedBoard();
+    const medals = ['🥇', '🥈', '🥉'];
+    $('#boardEmpty').hidden = rows.length > 0;
+    $('#boardTable').hidden = rows.length === 0;
+    $('#boardBody').innerHTML = rows.map((r, i) => {
+      const cracked = TOTAL_DOORS - r.skips;
+      const when = new Date(r.at);
+      return '<tr>' +
+        '<td class="rank">' + (medals[i] || (i + 1)) + '</td>' +
+        '<td class="name">' + esc(r.name) + ' <span class="muted" title="' + (r.src === 'code' ? 'Added by Vault Code' : 'Finished on this computer') + '">' + (r.src === 'code' ? '🔑' : '💻') + '</span></td>' +
+        '<td><span class="locks-mini">' + '🔓'.repeat(cracked) + '⏭️'.repeat(r.skips) + '</span> ' + cracked + '/' + TOTAL_DOORS + '</td>' +
+        '<td class="time">' + fmtTime(r.seconds) + '</td>' +
+        '<td>' + r.skips + '</td>' +
+        '<td class="muted">' + String(when.getHours()).padStart(2, '0') + ':' + String(when.getMinutes()).padStart(2, '0') + '</td>' +
+        '<td><button type="button" class="rm" data-code="' + esc(r.code) + '" title="Remove this row" aria-label="Remove ' + esc(r.name) + '">✕</button></td>' +
+      '</tr>';
+    }).join('');
+  }
+  let boardTimer = null;
+  function startBoardWatch() { renderBoard(); stopBoardWatch(); boardTimer = setInterval(renderBoard, 2000); }
+  function stopBoardWatch() { if (boardTimer) clearInterval(boardTimer); boardTimer = null; }
+  window.addEventListener('storage', e => { if (e.key === BOARD_KEY && !screens.board.hidden) renderBoard(); });
+
+  function openBoard(from) { state.boardReturn = from; $('#boardMsg').textContent = ''; showScreen('board'); $('#codeInput').focus(); }
+  function boardMsg(text, cls) { const m = $('#boardMsg'); m.textContent = text; m.className = 'board-msg ' + (cls || ''); }
+
+  // ---------------------------------------------------------------- wiring
+  $('#soloSetup').addEventListener('submit', e => {
+    e.preventDefault();
+    startGame('solo', [$('#teamName').value.trim() || 'Vault Crackers']);
+  });
+  $('#btnRace').addEventListener('click', () => {
+    $('#soloSetup').hidden = true; $('#raceSetup').hidden = false;
+    renderRaceNames();
+    const first = $('#raceNames input'); if (first) first.focus();
+  });
+  $('#btnRaceCancel').addEventListener('click', () => { $('#raceSetup').hidden = true; $('#soloSetup').hidden = false; });
+  $$('#raceCount button').forEach(b => b.addEventListener('click', () => {
+    state.raceCount = Number(b.dataset.n);
+    $$('#raceCount button').forEach(x => x.classList.toggle('on', x === b));
+    renderRaceNames();
+  }));
+  function renderRaceNames() {
+    const host = $('#raceNames');
+    const existing = $$('input', host).map(i => i.value);
+    host.innerHTML = '';
+    for (let i = 0; i < state.raceCount; i++) {
+      const lab = document.createElement('label');
+      lab.className = 'field';
+      lab.innerHTML = '<span>' + TEAM_EMOJI[i] + ' Team ' + (i + 1) + ' name</span>' +
+        '<input class="text-input" maxlength="24" placeholder="Team ' + (i + 1) + '">';
+      $('input', lab).value = existing[i] || '';
+      host.appendChild(lab);
+    }
+  }
+  $('#raceSetup').addEventListener('submit', e => {
+    e.preventDefault();
+    startGame('race', $$('#raceNames input').map((inp, i) => inp.value.trim() || 'Team ' + (i + 1)));
+  });
+  $('#btnEndRace').addEventListener('click', endGame);
+  $('#btnQuit').addEventListener('click', () => {
+    if (state.over || confirm('Stop this game and go back to the start? Progress will be lost.')) {
+      stopTimer(); state.over = true; showScreen('intro');
+    }
+  });
+
+  $('#btnAgain').addEventListener('click', () => startGame(state.mode, state.teams.map(t => t.name)));
+  $('#btnHome').addEventListener('click', () => showScreen('intro'));
+  $('#btnBoard').addEventListener('click', () => openBoard('intro'));
+  $('#btnDebriefBoard').addEventListener('click', () => openBoard('debrief'));
+  $('#btnBoardBack').addEventListener('click', () => showScreen(state.boardReturn === 'debrief' ? 'debrief' : 'intro'));
+
+  $('#codeForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const input = $('#codeInput');
+    const r = C.parseVaultCode(input.value);
+    if (!r.ok) { boardMsg('🤔 ' + r.reason, 'err'); input.select(); return; }
+    const res = addBoardEntry({ code: r.code, name: r.name, seconds: r.seconds, skips: r.skips, at: Date.now(), src: 'code' });
+    if (res === 'dup') boardMsg('That code is already on the board.', 'err');
+    else if (res === 'fail') boardMsg('Could not save — this browser is blocking storage.', 'err');
+    else boardMsg('✅ Added ' + r.name + ': ' + fmtTime(r.seconds) + ', ' + (TOTAL_DOORS - r.skips) + '/' + TOTAL_DOORS + ' doors cracked.', 'ok');
+    input.value = '';
+    renderBoard();
+    input.focus();
+  });
+  $('#boardBody').addEventListener('click', e => {
+    const b = e.target.closest('.rm');
+    if (!b) return;
+    saveBoard(loadBoard().filter(r => r.code !== b.dataset.code));
+    renderBoard();
+  });
+  $('#btnBoardClear').addEventListener('click', () => {
+    if (loadBoard().length === 0) return;
+    if (confirm('Clear every result from the Class Leaderboard on this computer?')) { saveBoard([]); renderBoard(); boardMsg('Board cleared.', 'ok'); }
+  });
+
+  showScreen('intro');
+  $('#teamName').focus();
+})();
+</script>
+</body>
+</html>
