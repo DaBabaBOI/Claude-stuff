@@ -1,13 +1,15 @@
 // Clarion AI wireframes: ONE script that builds/refreshes everything.
-// - Detailed spec panels for screens 01-04, directly beneath each screen
-// - A shared "Design tokens" panel
-// - The "05 · Road to Glory" rewards/gamification screen, plus its own spec panel beneath it
-// - A final sweep that replaces every em dash on the page
+// - Detailed spec panels for screens 01-04 and 05 "Road to Glory", each directly beneath its own
+//   screen. Every panel is self-contained: it has that screen's own rows PLUS the shared design
+//   tokens (colours, corner radius scale, stroke, type, spacing) under a "Design tokens" heading,
+//   so nothing lives in a separate panel you have to go hunting for.
+// - A final sweep that replaces every em dash on the page.
+// - A viewport auto-fit at the end so everything is visible the moment the script finishes.
 //
 // Run in Figma with the free "Scripter" plugin (Plugins > Scripter), on the "Wireframes" page.
 // Safe to re-run any number of times: it deletes its own previous output first, then rebuilds
-// everything fresh, so it also fixes any stray manual edits (wrong redeem items, etc.).
-// This single file replaces fix-annotations.js and add-rewards-screen.js, run this one only.
+// everything fresh, so it also fixes any stray manual edits.
+// This single file is the only script you need to run.
 // Paste everything below into Scripter and press Run.
 
 await figma.loadFontAsync({family:'Inter',style:'Regular'});
@@ -82,18 +84,23 @@ function pixelIcon(parent,pattern){
   }
   return grid;
 }
-function specPanel(title,rows,x,y,w){
+// A spec panel is one or more sections. Each section can have an optional heading; its rows are
+// numbered 1..N starting fresh within that section, so every panel reads as self-contained lists.
+function specPanel(title,sections,x,y,w){
   const f=frame('VERTICAL',{name:'Spec · '+title,gap:14,pad:24,fill:W,stroke:K,r:12,dash:[6,4]});
   page.appendChild(f); f.resize(w,100); f.primaryAxisSizingMode='AUTO'; f.counterAxisSizingMode='FIXED';
   f.x=x; f.y=y;
   text(f,title,'Bold',18,K);
-  rows.forEach((body,j)=>{
-    const r=frame('HORIZONTAL',{name:'Row '+(j+1),gap:12}); r.counterAxisAlignItems='MIN';
-    f.appendChild(r); r.layoutSizingHorizontal='FILL'; r.layoutSizingVertical='HUG';
-    const n=frame('HORIZONTAL',{name:'Number',fill:K,r:99}); n.primaryAxisAlignItems='CENTER'; n.counterAxisAlignItems='CENTER';
-    r.appendChild(n); n.resize(26,26); n.primaryAxisSizingMode='FIXED'; n.counterAxisSizingMode='FIXED';
-    text(n,String(j+1),'Bold',12,W);
-    text(r,body,'Regular',14,K,{fw:true});
+  sections.forEach(sec=>{
+    if(sec.heading) text(f,sec.heading,'Semi Bold',15,K);
+    sec.rows.forEach((body,j)=>{
+      const r=frame('HORIZONTAL',{name:'Row '+(j+1),gap:12}); r.counterAxisAlignItems='MIN';
+      f.appendChild(r); r.layoutSizingHorizontal='FILL'; r.layoutSizingVertical='HUG';
+      const n=frame('HORIZONTAL',{name:'Number',fill:K,r:99}); n.primaryAxisAlignItems='CENTER'; n.counterAxisAlignItems='CENTER';
+      r.appendChild(n); n.resize(26,26); n.primaryAxisSizingMode='FIXED'; n.counterAxisSizingMode='FIXED';
+      text(n,String(j+1),'Bold',12,W);
+      text(r,body,'Regular',14,K,{fw:true});
+    });
   });
   return f;
 }
@@ -109,66 +116,9 @@ for(const n of page.children.filter(c=>
 const leg=page.children.find(c=>c.name==='Legend');
 if(leg){ for(const t of leg.findAll(n=>n.type==='TEXT'&&n.characters.startsWith('Source:'))) t.remove(); }
 
-// --- 2. detailed spec panels for screens 01-04, directly beneath each ---
-specPanel('01 · Sign in & Join class',[
- 'Frame: 1440 x 1024px, split into a fixed 600px left panel and a flexible right panel.',
- 'Left brand panel: fill #F0F0F0, padding 64px on all sides, 32px gap between blocks.',
- 'Logo mark: 40 x 40px square, fill #000000, corner radius 10px, white "C" set at 22px Bold.',
- 'Headline: 36px Bold black text, capped at 472px width so it wraps to three lines.',
- 'Feature checkboxes: 20 x 20px, corner radius 4px, checked state is filled #000000 with a white tick mark.',
- 'Illustration placeholder: 472 x 200px box, corner radius 12px, 1.5px black stroke, fill #F0F0F0.',
- 'Utility chips top right (language, text size, contrast): pill shape, corner radius 99px, padding 10px horizontal and 4px vertical, 1.5px black stroke.',
- 'Auth card: fixed width 440px, padding 32px, 16px gap between fields, 1.5px black stroke, corner radius 16px, white fill.',
- 'Sign in and Create account tabs: shared 8px radius container, each tab 10px vertical padding, active tab is filled #000000 with white 14px Semi Bold text.',
- 'Text inputs: padding 12px horizontal and 10px vertical, corner radius 8px, 1.5px black stroke, placeholder text in #737373 at 14px.',
- 'Primary button (Sign in): black fill, white 14px Semi Bold text, padding 16px horizontal and 12px vertical, corner radius 8px.',
- 'Six-digit class code boxes: 54 x 60px each, corner radius 8px, 1.5px black stroke, 8px gap between boxes, digits set at 24px Semi Bold.',
-], 100, 220+1024+40, 1440);
-
-specPanel('02 · Dashboard',[
- 'Top bar: full width, 64px tall, white fill, 1.5px black border along the bottom edge only.',
- 'Logo mark 32 x 32px, corner radius 8px. Search bar 460px wide and 40px tall, pill shaped at 99px radius, 1.5px black stroke.',
- 'Points chip: corner radius 4px (intentionally squarer than other chips), 1.5px black stroke, #F0F0F0 fill, 13px Bold text.',
- 'Avatar circle: 36px diameter, #D1D1D1 fill, 1.5px black stroke.',
- 'Sidebar: fixed width 240px, #F0F0F0 fill, 16px padding. Nav item padding 12px horizontal and 10px vertical, corner radius 8px; the active item is filled #000000 with white 15px Semi Bold text.',
- 'Stat cards: four equal columns, 16px padding, corner radius 12px, 1.5px black stroke. The Overdue card is filled #F0F0F0 here to mark the spot that becomes a warm red in the final build. Value text is 28px Bold.',
- 'Upcoming tasks card: corner radius 12px, 1.5px black stroke, white fill. Header padding 20px horizontal, 14px vertical. Filter pills (All, Today, Week, Done) are 99px radius.',
- 'Task rows: 20px horizontal padding, 14px vertical padding, separated by 1.5px black dividers. Checkbox is 20 x 20px at 4px radius.',
- 'Status chips: 99px pill radius. Overdue and Verified use a solid #000000 fill. "Awaiting teacher verification" uses a dashed 4,3 stroke instead of a solid fill, to read as pending.',
- 'Calendar card: corner radius 12px, 16px padding. Day cells are roughly 36 to 44px square, 6px radius, 1px black stroke; the current day is filled solid #000000.',
- 'AI suggestion card: corner radius 12px, #F0F0F0 fill. AI mark is 24 x 24px, 6px radius, black square with a white "C".',
- 'Recent discussions: 32px circular avatars, Teacher badge chip filled #000000 with white text.',
-], 100+1640, 220+1024+40, 1440);
-
-specPanel('03 · AI Study Helper',[
- 'Chats panel: fixed width 280px, white fill, 16px padding. Chat list item padding 12px horizontal, 10px vertical, corner radius 8px; the active chat is filled #F0F0F0 with a 1.5px black stroke.',
- 'Chat header: 24px horizontal padding, 14px vertical padding. Context and mode chips are 99px radius pills with a 1.5px black stroke.',
- 'AI avatar mark: 32 x 32px, black fill, corner radius 8px, white "C" set at 16px Bold.',
- 'AI message bubble: maximum width 640px, 16px padding, corner radius 12px, #F0F0F0 fill, no stroke.',
- 'User message bubble: black fill, white text, 14px padding, corner radius 12px, aligned to the right edge of the column.',
- 'Quick action buttons inside bubbles: corner radius 8px, 1.5px black stroke, 12px horizontal and 8px vertical padding, 13px Semi Bold text.',
- 'Study plan table: corner radius 8px, 1.5px black stroke, white fill, each row padded 12px horizontal and 10px vertical, separated by 1.5px black dividers.',
- 'Source chips: 99px pill radius, 1.5px black stroke, white fill, 12px Semi Bold text.',
- 'Flashcard preview: two cards side by side, each 84px tall, corner radius 10px. The front card has a solid 1.5px black stroke; the back card uses a dashed 5,4 stroke to signal it is the flipped, hidden-until-tapped state.',
- 'Composer input: corner radius 12px, 1.5px black stroke, 12px horizontal and 10px vertical padding, placeholder text in #737373.',
- 'Send button: black fill, white text, corner radius 8px, 16px horizontal and 8px vertical padding.',
-], 100+1640*2, 220+1024+40, 1440);
-
-specPanel('04 · Class Discussions',[
- 'Channel list: fixed width 280px, white fill, 16px padding. Channel row corner radius 6px; the active channel is filled #000000 with white text.',
- 'Unread badge: 18 x 18px circle, 99px radius, black fill, white 10px Bold number.',
- 'Feed header: 24px horizontal padding, 12px vertical padding. Public and Direct toggle shares one 99px radius pill container; the active segment is filled #000000.',
- 'Pinned bar: #F0F0F0 fill, 24px horizontal and 8px vertical padding. Pinned chip is filled #000000.',
- 'Post avatar: 36px circle, #D1D1D1 fill, 1.5px black stroke.',
- 'Teacher badge chip: 99px radius, black fill, white 12px Semi Bold text.',
- 'Direct message post: whole block has a 10px corner radius and a dashed 5,4 black stroke (instead of solid) to mark it as private. Its Direct label chip is filled #000000.',
- 'Attachment chip (for example the revision sheet PDF): corner radius 8px, 1.5px black stroke, #F0F0F0 fill.',
- 'Composer: input corner radius 12px with a 1.5px black stroke; Post button is black fill, white text, corner radius 8px.',
- 'Right class panel: fixed width 260px. Class code chip is corner radius 8px, #F0F0F0 fill, value set at 14px Bold. Member avatars are 24px circles. Related task chips are 99px pills.',
-], 100+1640*3, 220+1024+40, 1440);
-
-// --- 3. shared design tokens panel, off to the side so it never collides with a screen's own spec panel ---
-specPanel('Design tokens (applies to every screen)',[
+// --- 2. shared design tokens, folded into every screen's own panel below instead of living
+//        in one separate panel off to the side ---
+const tokenRows=[
  'Canvas: every screen frame is 1440 x 1024px, a Desktop breakpoint.',
  'Black #000000: body text, strokes, primary button fill, active nav and tab states.',
  'White #FFFFFF: page background, card background, card and screen fills.',
@@ -187,7 +137,77 @@ specPanel('Design tokens (applies to every screen)',[
  'Dashed stroke (4,3 or 5,4 or 6,4): marks a pending, private or non-final state, for example a status still awaiting teacher verification.',
  'Typography: Inter throughout. Sizes run from 11px meta labels up to 36px on the sign-in headline. Semi Bold for labels and buttons, Bold for headlines and numbers, Regular for body copy.',
  'Spacing: 4 to 8px between a tightly paired icon and label, 12 to 16px between fields inside a card, 24 to 32px for page-level padding.',
-], 100+5*1640, 220+1024+40, 1440);
+];
+
+// --- 3. detailed spec panels for screens 01-04, directly beneath each ---
+specPanel('01 · Sign in & Join class',[
+ {rows:[
+  'Frame: 1440 x 1024px, split into a fixed 600px left panel and a flexible right panel.',
+  'Left brand panel: fill #F0F0F0, padding 64px on all sides, 32px gap between blocks.',
+  'Logo mark: 40 x 40px square, fill #000000, corner radius 10px, white "C" set at 22px Bold.',
+  'Headline: 36px Bold black text, capped at 472px width so it wraps to three lines.',
+  'Feature checkboxes: 20 x 20px, corner radius 4px, checked state is filled #000000 with a white tick mark.',
+  'Illustration placeholder: 472 x 200px box, corner radius 12px, 1.5px black stroke, fill #F0F0F0.',
+  'Utility chips top right (language, text size, contrast): pill shape, corner radius 99px, padding 10px horizontal and 4px vertical, 1.5px black stroke.',
+  'Auth card: fixed width 440px, padding 32px, 16px gap between fields, 1.5px black stroke, corner radius 16px, white fill.',
+  'Sign in and Create account tabs: shared 8px radius container, each tab 10px vertical padding, active tab is filled #000000 with white 14px Semi Bold text.',
+  'Text inputs: padding 12px horizontal and 10px vertical, corner radius 8px, 1.5px black stroke, placeholder text in #737373 at 14px.',
+  'Primary button (Sign in): black fill, white 14px Semi Bold text, padding 16px horizontal and 12px vertical, corner radius 8px.',
+  'Six-digit class code boxes: 54 x 60px each, corner radius 8px, 1.5px black stroke, 8px gap between boxes, digits set at 24px Semi Bold.',
+ ]},
+ {heading:'Design tokens', rows:tokenRows},
+], 100, 220+1024+40, 1440);
+
+specPanel('02 · Dashboard',[
+ {rows:[
+  'Top bar: full width, 64px tall, white fill, 1.5px black border along the bottom edge only.',
+  'Logo mark 32 x 32px, corner radius 8px. Search bar 460px wide and 40px tall, pill shaped at 99px radius, 1.5px black stroke.',
+  'Points chip: corner radius 4px (intentionally squarer than other chips), 1.5px black stroke, #F0F0F0 fill, 13px Bold text.',
+  'Avatar circle: 36px diameter, #D1D1D1 fill, 1.5px black stroke.',
+  'Sidebar: fixed width 240px, #F0F0F0 fill, 16px padding. Nav item padding 12px horizontal and 10px vertical, corner radius 8px; the active item is filled #000000 with white 15px Semi Bold text.',
+  'Stat cards: four equal columns, 16px padding, corner radius 12px, 1.5px black stroke. The Overdue card is filled #F0F0F0 here to mark the spot that becomes a warm red in the final build. Value text is 28px Bold.',
+  'Upcoming tasks card: corner radius 12px, 1.5px black stroke, white fill. Header padding 20px horizontal, 14px vertical. Filter pills (All, Today, Week, Done) are 99px radius.',
+  'Task rows: 20px horizontal padding, 14px vertical padding, separated by 1.5px black dividers. Checkbox is 20 x 20px at 4px radius.',
+  'Status chips: 99px pill radius. Overdue and Verified use a solid #000000 fill. "Awaiting teacher verification" uses a dashed 4,3 stroke instead of a solid fill, to read as pending.',
+  'Calendar card: corner radius 12px, 16px padding. Day cells are roughly 36 to 44px square, 6px radius, 1px black stroke; the current day is filled solid #000000.',
+  'AI suggestion card: corner radius 12px, #F0F0F0 fill. AI mark is 24 x 24px, 6px radius, black square with a white "C".',
+  'Recent discussions: 32px circular avatars, Teacher badge chip filled #000000 with white text.',
+ ]},
+ {heading:'Design tokens', rows:tokenRows},
+], 100+1640, 220+1024+40, 1440);
+
+specPanel('03 · AI Study Helper',[
+ {rows:[
+  'Chats panel: fixed width 280px, white fill, 16px padding. Chat list item padding 12px horizontal, 10px vertical, corner radius 8px; the active chat is filled #F0F0F0 with a 1.5px black stroke.',
+  'Chat header: 24px horizontal padding, 14px vertical padding. Context and mode chips are 99px radius pills with a 1.5px black stroke.',
+  'AI avatar mark: 32 x 32px, black fill, corner radius 8px, white "C" set at 16px Bold.',
+  'AI message bubble: maximum width 640px, 16px padding, corner radius 12px, #F0F0F0 fill, no stroke.',
+  'User message bubble: black fill, white text, 14px padding, corner radius 12px, aligned to the right edge of the column.',
+  'Quick action buttons inside bubbles: corner radius 8px, 1.5px black stroke, 12px horizontal and 8px vertical padding, 13px Semi Bold text.',
+  'Study plan table: corner radius 8px, 1.5px black stroke, white fill, each row padded 12px horizontal and 10px vertical, separated by 1.5px black dividers.',
+  'Source chips: 99px pill radius, 1.5px black stroke, white fill, 12px Semi Bold text.',
+  'Flashcard preview: two cards side by side, each 84px tall, corner radius 10px. The front card has a solid 1.5px black stroke; the back card uses a dashed 5,4 stroke to signal it is the flipped, hidden-until-tapped state.',
+  'Composer input: corner radius 12px, 1.5px black stroke, 12px horizontal and 10px vertical padding, placeholder text in #737373.',
+  'Send button: black fill, white text, corner radius 8px, 16px horizontal and 8px vertical padding.',
+ ]},
+ {heading:'Design tokens', rows:tokenRows},
+], 100+1640*2, 220+1024+40, 1440);
+
+specPanel('04 · Class Discussions',[
+ {rows:[
+  'Channel list: fixed width 280px, white fill, 16px padding. Channel row corner radius 6px; the active channel is filled #000000 with white text.',
+  'Unread badge: 18 x 18px circle, 99px radius, black fill, white 10px Bold number.',
+  'Feed header: 24px horizontal padding, 12px vertical padding. Public and Direct toggle shares one 99px radius pill container; the active segment is filled #000000.',
+  'Pinned bar: #F0F0F0 fill, 24px horizontal and 8px vertical padding. Pinned chip is filled #000000.',
+  'Post avatar: 36px circle, #D1D1D1 fill, 1.5px black stroke.',
+  'Teacher badge chip: 99px radius, black fill, white 12px Semi Bold text.',
+  'Direct message post: whole block has a 10px corner radius and a dashed 5,4 black stroke (instead of solid) to mark it as private. Its Direct label chip is filled #000000.',
+  'Attachment chip (for example the revision sheet PDF): corner radius 8px, 1.5px black stroke, #F0F0F0 fill.',
+  'Composer: input corner radius 12px with a 1.5px black stroke; Post button is black fill, white text, corner radius 8px.',
+  'Right class panel: fixed width 260px. Class code chip is corner radius 8px, #F0F0F0 fill, value set at 14px Bold. Member avatars are 24px circles. Related task chips are 99px pills.',
+ ]},
+ {heading:'Design tokens', rows:tokenRows},
+], 100+1640*3, 220+1024+40, 1440);
 
 // --- 4. screen 05, "Road to Glory" (the rewards / gamification page), 5th column ---
 const X=100+4*1640, Y=220, W_=1440, H_=1024;
@@ -304,19 +324,22 @@ const info=al(right,'VERTICAL',{name:'Why verified card',px:20,py:16,gap:8,fw:tr
 text(info,'Why teacher-verified?','Semi Bold',15,K);
 text(info,'Points can only be earned by finishing real classwork, confirmed by a teacher. This keeps rewards and the leaderboard fair for everyone.','Regular',13,K,{fw:true});
 
-// --- 5. spec panel for screen 05, directly beneath it ---
+// --- 5. spec panel for screen 05, directly beneath it, also self-contained ---
 specPanel('05 · Road to Glory',[
- 'Frame: 1440 x 1024px, same top bar and sidebar shell as the Dashboard, with Rewards set as the active nav item.',
- 'Stat row: 3 equal cards, 16px padding, corner radius 12px, 1.5px black stroke. The Pending card uses a dashed 4,3 stroke instead of solid, to mark it as not yet confirmed.',
- 'Badge tiles: 4 across, roughly 300 x 150px each, corner radius 2px. Deliberately sharp, unlike the 8 to 16px used elsewhere, matching the design brief note that gamification elements get sharp corners.',
- 'Badge pixel icon: 40 x 40px square, a 4 x 4 grid of 8 x 8px blocks with 2px gaps, black or grey-outlined.',
- 'Locked badge: #F0F0F0 fill, dashed 4,3 black stroke. Unlocked badge: white fill, solid 1.5px black stroke.',
- 'Redeem row: rewards are in-app and game-style only, for example a streak freeze, a theme colour unlock, an avatar frame or a profile badge, never a real-world prize a teacher or school would need to arrange. 12px vertical row padding, 1.5px divider, Redeem button at 8px radius, black fill when affordable, #F0F0F0 fill and grey text with a "need X more" label when not.',
- 'Activity row: same pattern as the Dashboard task list. Verified points use a solid black 99px pill, pending points use a dashed 4,3 pill.',
- 'Class leaderboard card: corner radius 12px, 1.5px black stroke, scoped to the student\'s own class. Rank badge is a 28px circle at 99px radius. The current student\'s row gets an added 1.5px black outline and 8px padding.',
- 'Visibility toggle: 44 x 24px pill track at 99px radius, 20px white knob. Filled black with the knob on the right when visible to classmates, filled #F0F0F0 with the knob on the left when off.',
- 'School leaderboard card: same 12px radius and 1.5px stroke, scoped to the whole year group and anonymised by default, shown with the toggle off. Lists the top 3 students school-wide, then a highlighted "Your rank" row so a student outside the top 3 still sees where they stand.',
- 'Why teacher-verified info card: #F0F0F0 fill, corner radius 12px, one short paragraph tying points and both leaderboards back to teacher verification.',
+ {rows:[
+  'Frame: 1440 x 1024px, same top bar and sidebar shell as the Dashboard, with Rewards set as the active nav item.',
+  'Stat row: 3 equal cards, 16px padding, corner radius 12px, 1.5px black stroke. The Pending card uses a dashed 4,3 stroke instead of solid, to mark it as not yet confirmed.',
+  'Badge tiles: 4 across, roughly 300 x 150px each, corner radius 2px. Deliberately sharp, unlike the 8 to 16px used elsewhere, matching the design brief note that gamification elements get sharp corners.',
+  'Badge pixel icon: 40 x 40px square, a 4 x 4 grid of 8 x 8px blocks with 2px gaps, black or grey-outlined.',
+  'Locked badge: #F0F0F0 fill, dashed 4,3 black stroke. Unlocked badge: white fill, solid 1.5px black stroke.',
+  'Redeem row: rewards are in-app and game-style, for example a streak freeze, a theme colour unlock, an avatar frame, a weapon upgrade, or a profile badge, never a real-world prize a teacher or school would need to arrange. 12px vertical row padding, 1.5px divider, Redeem button at 8px radius, black fill when affordable, #F0F0F0 fill and grey text with a "need X more" label when not.',
+  'Activity row: same pattern as the Dashboard task list. Verified points use a solid black 99px pill, pending points use a dashed 4,3 pill.',
+  'Class leaderboard card: corner radius 12px, 1.5px black stroke, scoped to the student\'s own class. Rank badge is a 28px circle at 99px radius. The current student\'s row gets an added 1.5px black outline and 8px padding.',
+  'Visibility toggle: 44 x 24px pill track at 99px radius, 20px white knob. Filled black with the knob on the right when visible to classmates, filled #F0F0F0 with the knob on the left when off.',
+  'School leaderboard card: same 12px radius and 1.5px stroke, scoped to the whole year group and anonymised by default, shown with the toggle off. Lists the top 3 students school-wide, then a highlighted "Your rank" row so a student outside the top 3 still sees where they stand.',
+  'Why teacher-verified info card: #F0F0F0 fill, corner radius 12px, one short paragraph tying points and both leaderboards back to teacher verification.',
+ ]},
+ {heading:'Design tokens', rows:tokenRows},
 ], 100+4*1640, 220+1024+40, 1440);
 
 // --- 6. final safety net: replace every em dash anywhere on the page ---
@@ -337,12 +360,7 @@ for(const t of page.findAllWithCriteria({types:['TEXT']})){
 }
 
 // --- 7. move Figma's own viewport to show everything at once, so nothing needs to be hunted for ---
-// Every screen's spec panel sits directly beneath it, 40px below its bottom edge. That is over
-// 1000px of vertical distance from the screen itself, well outside a normal 100% zoom viewport,
-// which is exactly why annotations can look "not on the page" even though they are there.
-// This line fits the whole page (every screen, every spec panel, the legend) into view immediately,
-// no manual zoom-to-fit needed.
 figma.viewport.scrollAndZoomIntoView(page.children);
 
-figma.notify('Done: 6 spec panels total, Road to Glory rebuilt, '+dashCount+' em dashes replaced. View has been zoomed to fit everything.');
+figma.notify('Done: 5 self-contained spec panels (no separate tokens page), '+dashCount+' em dashes replaced.');
 return {ok:true, rootId:root.id};
