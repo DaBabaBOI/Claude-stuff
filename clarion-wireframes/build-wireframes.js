@@ -255,7 +255,7 @@ text(badgeCard,'Sharp 2px corners on badge tiles only, everywhere else uses 8 to
 const redeem=al(left,'VERTICAL',{name:'Redeem card',px:20,py:16,gap:0,fw:true,stroke:K,r:12,fill:W,clip:true});
 text(redeem,'Redeem your points','Semi Bold',18,K);
 text(redeem,'Spend verified points on in-app extras, nothing a teacher needs to arrange.','Regular',12,G3,{fw:true});
-const redeemRows=[['Streak freeze (skip a day)',60,true],['Unlock "Ocean" theme colours',30,true],['Gold avatar frame',40,true],['"Founder" profile badge',300,false]];
+const redeemRows=[['Streak freeze (skip a day)',60,true],['Unlock "Ocean" theme colours',30,true],['Gold avatar frame',40,true],['Darksword: +90 damage per turn',150,true],['"Founder" profile badge',300,false]];
 for(const [name,cost,afford] of redeemRows){
   const r=al(redeem,'HORIZONTAL',{name:'Redeem row',py:12,gap:12,fw:true,align:'CENTER',justify:'SPACE_BETWEEN'});
   const rl=al(r,'VERTICAL',{gap:2}); text(rl,name,'Semi Bold',14,K); text(rl,cost+' pts','Regular',12,G3);
