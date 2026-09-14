@@ -1,4 +1,4 @@
-// Clarion AI wireframes: adds/updates the 5th screen "05 · Rewards & Gamification"
+// Clarion AI wireframes: adds/updates the 5th screen "05 · Road to Glory" (Rewards & Gamification)
 // plus its own detailed spec panel, matching the style of the other four screens.
 // Run in Figma with the free "Scripter" plugin (Plugins > Scripter), on the "Wireframes" page.
 // Safe to re-run: it removes any earlier version of this screen and its spec panel first.
@@ -79,14 +79,14 @@ function pixelIcon(parent,pattern){
 }
 
 // --- remove any earlier version of this screen, its labels and its spec panel ---
-for(const n of page.children.filter(c=>['05 · Rewards & Gamification','Spec · 05 · Rewards & Gamification','Label 05 · Rewards & Gamification','Sub 05 · Rewards & Gamification'].includes(c.name))) n.remove();
+for(const n of page.children.filter(c=>['05 · Rewards & Gamification','Spec · 05 · Rewards & Gamification','Label 05 · Rewards & Gamification','Sub 05 · Rewards & Gamification','05 · Road to Glory','Spec · 05 · Road to Glory','Label 05 · Road to Glory','Sub 05 · Road to Glory'].includes(c.name))) n.remove();
 
 // --- position: 5th column, same row as the other 4 screens ---
 const X=100+4*1640, Y=220, W_=1440, H_=1024;
-const label=text(page,'05 · Rewards & Gamification','Semi Bold',28,K); label.name='Label 05 · Rewards & Gamification'; label.x=X; label.y=Y-60;
-const sub=text(page,'Clarion AI · Desktop 1440x1024 · Low-fidelity wireframe','Regular',14,G3); sub.name='Sub 05 · Rewards & Gamification'; sub.x=X; sub.y=Y-24;
+const label=text(page,'05 · Road to Glory','Semi Bold',28,K); label.name='Label 05 · Road to Glory'; label.x=X; label.y=Y-60;
+const sub=text(page,'Clarion AI · Desktop 1440x1024 · Low-fidelity wireframe','Regular',14,G3); sub.name='Sub 05 · Road to Glory'; sub.x=X; sub.y=Y-24;
 
-const root=frame('VERTICAL',{name:'05 · Rewards & Gamification',gap:0,fill:W,stroke:K,sw:2,clip:true});
+const root=frame('VERTICAL',{name:'05 · Road to Glory',gap:0,fill:W,stroke:K,sw:2,clip:true});
 page.appendChild(root); root.resize(W_,H_); root.x=X; root.y=Y;
 root.primaryAxisSizingMode='FIXED'; root.counterAxisSizingMode='FIXED';
 
@@ -119,7 +119,7 @@ const content=al(body,'VERTICAL',{name:'Content',px:32,py:32,gap:24,fw:true,fh:t
 
 // Header
 const hdr=al(content,'HORIZONTAL',{name:'Header',fw:true,justify:'SPACE_BETWEEN',align:'CENTER'});
-const hl=al(hdr,'VERTICAL',{gap:4}); text(hl,'Rewards','Bold',28,K); text(hl,'Points are added only after your teacher checks your work.','Regular',14,G3);
+const hl=al(hdr,'VERTICAL',{gap:4}); text(hl,'Road to Glory','Bold',28,K); text(hl,'Points are added only after your teacher checks your work.','Regular',14,G3);
 btn(hdr,'Redeem history');
 
 // Stat row
@@ -221,7 +221,7 @@ function specPanel(title,rows,x,y,w){
   });
   return f;
 }
-specPanel('05 · Rewards & Gamification',[
+specPanel('05 · Road to Glory',[
  'Frame: 1440 x 1024px, same top bar and sidebar shell as the Dashboard, with Rewards set as the active nav item.',
  'Stat row: 3 equal cards, 16px padding, corner radius 12px, 1.5px black stroke. The Pending card uses a dashed 4,3 stroke instead of solid, to mark it as not yet confirmed.',
  'Badge tiles: 4 across, roughly 300 x 150px each, corner radius 2px. Deliberately sharp, unlike the 8 to 16px used elsewhere, matching the design brief note that gamification elements get sharp corners.',
@@ -233,6 +233,6 @@ specPanel('05 · Rewards & Gamification',[
  'Visibility toggle: 44 x 24px pill track at 99px radius, 20px white knob. Filled black with the knob on the right when visible to classmates, filled #F0F0F0 with the knob on the left when off.',
  'School leaderboard card: same 12px radius and 1.5px stroke, scoped to the whole year group and anonymised by default, shown with the toggle off. Lists the top 3 students school-wide, then a highlighted "Your rank" row so a student outside the top 3 still sees where they stand.',
  'Why teacher-verified info card: #F0F0F0 fill, corner radius 12px, one short paragraph tying points and both leaderboards back to teacher verification.',
-], 100+5*1640, 220+1024+40, 1440);
+], 100+4*1640, 220+1024+40, 1440);
 
 return {ok:true, rootId:root.id};

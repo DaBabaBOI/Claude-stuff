@@ -58,13 +58,14 @@ function specPanel(title,rows,x,y,w){
   return f;
 }
 
-specPanel('Design tokens (applies to all four screens)',[
+specPanel('Design tokens (applies to every screen)',[
  'Canvas: every screen frame is 1440 x 1024px, a Desktop breakpoint.',
  'Black #000000: body text, strokes, primary button fill, active nav and tab states.',
  'White #FFFFFF: page background, card background, card and screen fills.',
  'Light grey #F0F0F0: sidebar background, secondary chip fill, hover and warm-colour placeholder surfaces.',
  'Mid grey #D1D1D1: avatar placeholder fill, image placeholder fill.',
  'Grey text #737373: secondary text, timestamps, input placeholder text.',
+ 'Corner radius 2px: badge tiles on the Road to Glory rewards page, deliberately sharper than everywhere else.',
  'Corner radius 4px: small icon tiles and checkboxes.',
  'Corner radius 6px: tabs, small chips, calendar day cells.',
  'Corner radius 8px: buttons, inputs, list rows, nav items, attachment chips.',
@@ -76,7 +77,7 @@ specPanel('Design tokens (applies to all four screens)',[
  'Dashed stroke (4,3 or 5,4 or 6,4): marks a pending, private or non-final state, for example a status still awaiting teacher verification.',
  'Typography: Inter throughout. Sizes run from 11px meta labels up to 36px on the sign-in headline. Semi Bold for labels and buttons, Bold for headlines and numbers, Regular for body copy.',
  'Spacing: 4 to 8px between a tightly paired icon and label, 12 to 16px between fields inside a card, 24 to 32px for page-level padding.',
-], 100+4*1640, 220+1024+40, 1440);
+], 100+5*1640, 220+1024+40, 1440);
 
 specPanel('01 · Sign in & Join class',[
  'Frame: 1440 x 1024px, split into a fixed 600px left panel and a flexible right panel.',
