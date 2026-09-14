@@ -336,5 +336,13 @@ for(const t of page.findAllWithCriteria({types:['TEXT']})){
   t.characters=s; dashCount++;
 }
 
-figma.notify('Done: 6 spec panels total, Road to Glory rebuilt, '+dashCount+' em dashes replaced');
+// --- 7. move Figma's own viewport to show everything at once, so nothing needs to be hunted for ---
+// Every screen's spec panel sits directly beneath it, 40px below its bottom edge. That is over
+// 1000px of vertical distance from the screen itself, well outside a normal 100% zoom viewport,
+// which is exactly why annotations can look "not on the page" even though they are there.
+// This line fits the whole page (every screen, every spec panel, the legend) into view immediately,
+// no manual zoom-to-fit needed.
+figma.viewport.scrollAndZoomIntoView(page.children);
+
+figma.notify('Done: 6 spec panels total, Road to Glory rebuilt, '+dashCount+' em dashes replaced. View has been zoomed to fit everything.');
 return {ok:true, rootId:root.id};
