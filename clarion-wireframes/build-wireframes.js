@@ -1,8 +1,13 @@
-// Clarion AI wireframes: adds/updates the 5th screen "05 · Road to Glory" (Rewards & Gamification)
-// plus its own detailed spec panel, matching the style of the other four screens.
+// Clarion AI wireframes: ONE script that builds/refreshes everything.
+// - Detailed spec panels for screens 01-04, directly beneath each screen
+// - A shared "Design tokens" panel
+// - The "05 · Road to Glory" rewards/gamification screen, plus its own spec panel beneath it
+// - A final sweep that replaces every em dash on the page
+//
 // Run in Figma with the free "Scripter" plugin (Plugins > Scripter), on the "Wireframes" page.
-// Safe to re-run: it removes any earlier version of this screen and its spec panel first.
-// Independent of fix-annotations.js. Safe to run before or after it, in any order.
+// Safe to re-run any number of times: it deletes its own previous output first, then rebuilds
+// everything fresh, so it also fixes any stray manual edits (wrong redeem items, etc.).
+// This single file replaces fix-annotations.js and add-rewards-screen.js, run this one only.
 // Paste everything below into Scripter and press Run.
 
 await figma.loadFontAsync({family:'Inter',style:'Regular'});
@@ -77,11 +82,114 @@ function pixelIcon(parent,pattern){
   }
   return grid;
 }
+function specPanel(title,rows,x,y,w){
+  const f=frame('VERTICAL',{name:'Spec · '+title,gap:14,pad:24,fill:W,stroke:K,r:12,dash:[6,4]});
+  page.appendChild(f); f.resize(w,100); f.primaryAxisSizingMode='AUTO'; f.counterAxisSizingMode='FIXED';
+  f.x=x; f.y=y;
+  text(f,title,'Bold',18,K);
+  rows.forEach((body,j)=>{
+    const r=frame('HORIZONTAL',{name:'Row '+(j+1),gap:12}); r.counterAxisAlignItems='MIN';
+    f.appendChild(r); r.layoutSizingHorizontal='FILL'; r.layoutSizingVertical='HUG';
+    const n=frame('HORIZONTAL',{name:'Number',fill:K,r:99}); n.primaryAxisAlignItems='CENTER'; n.counterAxisAlignItems='CENTER';
+    r.appendChild(n); n.resize(26,26); n.primaryAxisSizingMode='FIXED'; n.counterAxisSizingMode='FIXED';
+    text(n,String(j+1),'Bold',12,W);
+    text(r,body,'Regular',14,K,{fw:true});
+  });
+  return f;
+}
 
-// --- remove any earlier version of this screen, its labels and its spec panel ---
-for(const n of page.children.filter(c=>['05 · Rewards & Gamification','Spec · 05 · Rewards & Gamification','Label 05 · Rewards & Gamification','Sub 05 · Rewards & Gamification','05 · Road to Glory','Spec · 05 · Road to Glory','Label 05 · Road to Glory','Sub 05 · Road to Glory'].includes(c.name))) n.remove();
+// --- 1. clean slate: remove every previous spec panel, notes panel, design tokens panel,
+//        and any earlier version of the Rewards / Road to Glory screen and its labels ---
+for(const n of page.children.filter(c=>
+  c.name.startsWith('Annotations · ')||c.name.startsWith('Notes · ')||c.name.startsWith('Spec · ')||
+  c.name==='Design tokens'||
+  ['05 · Rewards & Gamification','Label 05 · Rewards & Gamification','Sub 05 · Rewards & Gamification',
+   '05 · Road to Glory','Label 05 · Road to Glory','Sub 05 · Road to Glory'].includes(c.name)
+)) n.remove();
+const leg=page.children.find(c=>c.name==='Legend');
+if(leg){ for(const t of leg.findAll(n=>n.type==='TEXT'&&n.characters.startsWith('Source:'))) t.remove(); }
 
-// --- position: 5th column, same row as the other 4 screens ---
+// --- 2. detailed spec panels for screens 01-04, directly beneath each ---
+specPanel('01 · Sign in & Join class',[
+ 'Frame: 1440 x 1024px, split into a fixed 600px left panel and a flexible right panel.',
+ 'Left brand panel: fill #F0F0F0, padding 64px on all sides, 32px gap between blocks.',
+ 'Logo mark: 40 x 40px square, fill #000000, corner radius 10px, white "C" set at 22px Bold.',
+ 'Headline: 36px Bold black text, capped at 472px width so it wraps to three lines.',
+ 'Feature checkboxes: 20 x 20px, corner radius 4px, checked state is filled #000000 with a white tick mark.',
+ 'Illustration placeholder: 472 x 200px box, corner radius 12px, 1.5px black stroke, fill #F0F0F0.',
+ 'Utility chips top right (language, text size, contrast): pill shape, corner radius 99px, padding 10px horizontal and 4px vertical, 1.5px black stroke.',
+ 'Auth card: fixed width 440px, padding 32px, 16px gap between fields, 1.5px black stroke, corner radius 16px, white fill.',
+ 'Sign in and Create account tabs: shared 8px radius container, each tab 10px vertical padding, active tab is filled #000000 with white 14px Semi Bold text.',
+ 'Text inputs: padding 12px horizontal and 10px vertical, corner radius 8px, 1.5px black stroke, placeholder text in #737373 at 14px.',
+ 'Primary button (Sign in): black fill, white 14px Semi Bold text, padding 16px horizontal and 12px vertical, corner radius 8px.',
+ 'Six-digit class code boxes: 54 x 60px each, corner radius 8px, 1.5px black stroke, 8px gap between boxes, digits set at 24px Semi Bold.',
+], 100, 220+1024+40, 1440);
+
+specPanel('02 · Dashboard',[
+ 'Top bar: full width, 64px tall, white fill, 1.5px black border along the bottom edge only.',
+ 'Logo mark 32 x 32px, corner radius 8px. Search bar 460px wide and 40px tall, pill shaped at 99px radius, 1.5px black stroke.',
+ 'Points chip: corner radius 4px (intentionally squarer than other chips), 1.5px black stroke, #F0F0F0 fill, 13px Bold text.',
+ 'Avatar circle: 36px diameter, #D1D1D1 fill, 1.5px black stroke.',
+ 'Sidebar: fixed width 240px, #F0F0F0 fill, 16px padding. Nav item padding 12px horizontal and 10px vertical, corner radius 8px; the active item is filled #000000 with white 15px Semi Bold text.',
+ 'Stat cards: four equal columns, 16px padding, corner radius 12px, 1.5px black stroke. The Overdue card is filled #F0F0F0 here to mark the spot that becomes a warm red in the final build. Value text is 28px Bold.',
+ 'Upcoming tasks card: corner radius 12px, 1.5px black stroke, white fill. Header padding 20px horizontal, 14px vertical. Filter pills (All, Today, Week, Done) are 99px radius.',
+ 'Task rows: 20px horizontal padding, 14px vertical padding, separated by 1.5px black dividers. Checkbox is 20 x 20px at 4px radius.',
+ 'Status chips: 99px pill radius. Overdue and Verified use a solid #000000 fill. "Awaiting teacher verification" uses a dashed 4,3 stroke instead of a solid fill, to read as pending.',
+ 'Calendar card: corner radius 12px, 16px padding. Day cells are roughly 36 to 44px square, 6px radius, 1px black stroke; the current day is filled solid #000000.',
+ 'AI suggestion card: corner radius 12px, #F0F0F0 fill. AI mark is 24 x 24px, 6px radius, black square with a white "C".',
+ 'Recent discussions: 32px circular avatars, Teacher badge chip filled #000000 with white text.',
+], 100+1640, 220+1024+40, 1440);
+
+specPanel('03 · AI Study Helper',[
+ 'Chats panel: fixed width 280px, white fill, 16px padding. Chat list item padding 12px horizontal, 10px vertical, corner radius 8px; the active chat is filled #F0F0F0 with a 1.5px black stroke.',
+ 'Chat header: 24px horizontal padding, 14px vertical padding. Context and mode chips are 99px radius pills with a 1.5px black stroke.',
+ 'AI avatar mark: 32 x 32px, black fill, corner radius 8px, white "C" set at 16px Bold.',
+ 'AI message bubble: maximum width 640px, 16px padding, corner radius 12px, #F0F0F0 fill, no stroke.',
+ 'User message bubble: black fill, white text, 14px padding, corner radius 12px, aligned to the right edge of the column.',
+ 'Quick action buttons inside bubbles: corner radius 8px, 1.5px black stroke, 12px horizontal and 8px vertical padding, 13px Semi Bold text.',
+ 'Study plan table: corner radius 8px, 1.5px black stroke, white fill, each row padded 12px horizontal and 10px vertical, separated by 1.5px black dividers.',
+ 'Source chips: 99px pill radius, 1.5px black stroke, white fill, 12px Semi Bold text.',
+ 'Flashcard preview: two cards side by side, each 84px tall, corner radius 10px. The front card has a solid 1.5px black stroke; the back card uses a dashed 5,4 stroke to signal it is the flipped, hidden-until-tapped state.',
+ 'Composer input: corner radius 12px, 1.5px black stroke, 12px horizontal and 10px vertical padding, placeholder text in #737373.',
+ 'Send button: black fill, white text, corner radius 8px, 16px horizontal and 8px vertical padding.',
+], 100+1640*2, 220+1024+40, 1440);
+
+specPanel('04 · Class Discussions',[
+ 'Channel list: fixed width 280px, white fill, 16px padding. Channel row corner radius 6px; the active channel is filled #000000 with white text.',
+ 'Unread badge: 18 x 18px circle, 99px radius, black fill, white 10px Bold number.',
+ 'Feed header: 24px horizontal padding, 12px vertical padding. Public and Direct toggle shares one 99px radius pill container; the active segment is filled #000000.',
+ 'Pinned bar: #F0F0F0 fill, 24px horizontal and 8px vertical padding. Pinned chip is filled #000000.',
+ 'Post avatar: 36px circle, #D1D1D1 fill, 1.5px black stroke.',
+ 'Teacher badge chip: 99px radius, black fill, white 12px Semi Bold text.',
+ 'Direct message post: whole block has a 10px corner radius and a dashed 5,4 black stroke (instead of solid) to mark it as private. Its Direct label chip is filled #000000.',
+ 'Attachment chip (for example the revision sheet PDF): corner radius 8px, 1.5px black stroke, #F0F0F0 fill.',
+ 'Composer: input corner radius 12px with a 1.5px black stroke; Post button is black fill, white text, corner radius 8px.',
+ 'Right class panel: fixed width 260px. Class code chip is corner radius 8px, #F0F0F0 fill, value set at 14px Bold. Member avatars are 24px circles. Related task chips are 99px pills.',
+], 100+1640*3, 220+1024+40, 1440);
+
+// --- 3. shared design tokens panel, off to the side so it never collides with a screen's own spec panel ---
+specPanel('Design tokens (applies to every screen)',[
+ 'Canvas: every screen frame is 1440 x 1024px, a Desktop breakpoint.',
+ 'Black #000000: body text, strokes, primary button fill, active nav and tab states.',
+ 'White #FFFFFF: page background, card background, card and screen fills.',
+ 'Light grey #F0F0F0: sidebar background, secondary chip fill, hover and warm-colour placeholder surfaces.',
+ 'Mid grey #D1D1D1: avatar placeholder fill, image placeholder fill.',
+ 'Grey text #737373: secondary text, timestamps, input placeholder text.',
+ 'Corner radius 2px: badge tiles on the Road to Glory rewards page, deliberately sharper than everywhere else.',
+ 'Corner radius 4px: small icon tiles and checkboxes.',
+ 'Corner radius 6px: tabs, small chips, calendar day cells.',
+ 'Corner radius 8px: buttons, inputs, list rows, nav items, attachment chips.',
+ 'Corner radius 10px: flashcards, image placeholders, direct message post.',
+ 'Corner radius 12px: cards, panels, calendar container.',
+ 'Corner radius 16px: the sign-in card on screen 1.',
+ 'Corner radius 99px: pills, chips, circular avatars, toggle tracks, badge circles.',
+ 'Stroke: 1.5px solid black on every outlined card, button and input; 1px on calendar day cells.',
+ 'Dashed stroke (4,3 or 5,4 or 6,4): marks a pending, private or non-final state, for example a status still awaiting teacher verification.',
+ 'Typography: Inter throughout. Sizes run from 11px meta labels up to 36px on the sign-in headline. Semi Bold for labels and buttons, Bold for headlines and numbers, Regular for body copy.',
+ 'Spacing: 4 to 8px between a tightly paired icon and label, 12 to 16px between fields inside a card, 24 to 32px for page-level padding.',
+], 100+5*1640, 220+1024+40, 1440);
+
+// --- 4. screen 05, "Road to Glory" (the rewards / gamification page), 5th column ---
 const X=100+4*1640, Y=220, W_=1440, H_=1024;
 const label=text(page,'05 · Road to Glory','Semi Bold',28,K); label.name='Label 05 · Road to Glory'; label.x=X; label.y=Y-60;
 const sub=text(page,'Clarion AI · Desktop 1440x1024 · Low-fidelity wireframe','Regular',14,G3); sub.name='Sub 05 · Road to Glory'; sub.x=X; sub.y=Y-24;
@@ -90,7 +198,6 @@ const root=frame('VERTICAL',{name:'05 · Road to Glory',gap:0,fill:W,stroke:K,sw
 page.appendChild(root); root.resize(W_,H_); root.x=X; root.y=Y;
 root.primaryAxisSizingMode='FIXED'; root.counterAxisSizingMode='FIXED';
 
-// Top bar (matches the shell used on Dashboard / AI Helper / Discussions)
 const top=al(root,'HORIZONTAL',{name:'Top bar',px:24,gap:16,align:'CENTER',fw:true,h:64,fill:W});
 const logo=al(top,'HORIZONTAL',{name:'Logo',gap:10,align:'CENTER'});
 const mark=al(logo,'HORIZONTAL',{name:'Logo mark',w:32,h:32,fill:K,r:8,align:'CENTER',justify:'CENTER'}); text(mark,'C','Bold',18,W);
@@ -104,7 +211,6 @@ const pts=al(top,'HORIZONTAL',{name:'Points',px:12,py:6,gap:6,align:'CENTER',str
 circleEl(top,36);
 divider(root);
 
-// Body: sidebar + content
 const body=al(root,'HORIZONTAL',{name:'Body',gap:0,fw:true,fh:true});
 const side=al(body,'VERTICAL',{name:'Sidebar',w:240,fh:true,fill:G1,px:16,py:16,gap:4});
 const navItems=['Dashboard','My classes','Calendar','Discussions','AI Helper','Rewards'];
@@ -117,22 +223,18 @@ rectBox(body,{name:'V divider',w:1.5,fh:true,fill:K,stroke:null,r:0});
 
 const content=al(body,'VERTICAL',{name:'Content',px:32,py:32,gap:24,fw:true,fh:true});
 
-// Header
 const hdr=al(content,'HORIZONTAL',{name:'Header',fw:true,justify:'SPACE_BETWEEN',align:'CENTER'});
 const hl=al(hdr,'VERTICAL',{gap:4}); text(hl,'Road to Glory','Bold',28,K); text(hl,'Points are added only after your teacher checks your work.','Regular',14,G3);
 btn(hdr,'Redeem history');
 
-// Stat row
 const stats=al(content,'HORIZONTAL',{name:'Stat row',gap:16,fw:true});
 const s1=al(stats,'VERTICAL',{name:'Stat/Verified',px:16,py:16,gap:6,fw:true,stroke:K,r:12,fill:W}); text(s1,'Verified points','Regular',13,G3); text(s1,'240 pts','Bold',28,K); text(s1,'since 1 Sep','Regular',12,G3);
 const s2=al(stats,'VERTICAL',{name:'Stat/Pending',px:16,py:16,gap:6,fw:true,stroke:K,r:12,fill:W,dash:[4,3]}); text(s2,'Pending verification','Regular',13,G3); text(s2,'12 pts','Bold',28,K); text(s2,'1 task awaiting teacher check','Regular',12,G3);
 const s3=al(stats,'VERTICAL',{name:'Stat/Streak',px:16,py:16,gap:6,fw:true,stroke:K,r:12,fill:W}); text(s3,'Current streak','Regular',13,G3); text(s3,'6 days','Bold',28,K); text(s3,'streak breaks turn warm-coloured in hi-fi','Regular',12,G3);
 
-// Two column area
 const main=al(content,'HORIZONTAL',{name:'Main',gap:24,fw:true,fh:true});
 const left=al(main,'VERTICAL',{name:'Left column',gap:20,fw:true,fh:true});
 
-// Badges
 const badgeCard=al(left,'VERTICAL',{name:'Badges card',px:20,py:16,gap:14,fw:true,stroke:K,r:12,fill:W});
 text(badgeCard,'Badges','Semi Bold',18,K);
 const grid=al(badgeCard,'HORIZONTAL',{name:'Badge grid',gap:12,fw:true});
@@ -150,7 +252,6 @@ for(const [name,unlocked,sub2,pattern] of badgeData){
 }
 text(badgeCard,'Sharp 2px corners on badge tiles only, everywhere else uses 8 to 16px, the pixelated sharp-corner treatment the design spec calls for on gamification elements.','Regular',12,G3,{fw:true});
 
-// Redeem list: in-app, game-style rewards only, nothing that needs school or teacher approval
 const redeem=al(left,'VERTICAL',{name:'Redeem card',px:20,py:16,gap:0,fw:true,stroke:K,r:12,fill:W,clip:true});
 text(redeem,'Redeem your points','Semi Bold',18,K);
 text(redeem,'Spend verified points on in-app extras, nothing a teacher needs to arrange.','Regular',12,G3,{fw:true});
@@ -162,7 +263,6 @@ for(const [name,cost,afford] of redeemRows){
   divider(redeem);
 }
 
-// Recent activity
 const activity=al(left,'VERTICAL',{name:'Activity card',px:20,py:16,gap:0,fw:true,stroke:K,r:12,fill:W,clip:true});
 text(activity,'Recent activity','Semi Bold',18,K);
 const actRows=[['Map quiz verified by Mr Rao','+20 pts',false],['Reading log verified by Ms Kaushal','+15 pts',false],['Lab report submitted, awaiting verification','+30 pts pending',true]];
@@ -173,7 +273,6 @@ for(const [what,pt,pending] of actRows){
   divider(activity);
 }
 
-// Right column: class leaderboard, school leaderboard, info
 const right=al(main,'VERTICAL',{name:'Right column',w:380,gap:20,fh:true});
 
 const lead=al(right,'VERTICAL',{name:'Class leaderboard card',px:20,py:16,gap:12,fw:true,stroke:K,r:12,fill:W});
@@ -205,22 +304,7 @@ const info=al(right,'VERTICAL',{name:'Why verified card',px:20,py:16,gap:8,fw:tr
 text(info,'Why teacher-verified?','Semi Bold',15,K);
 text(info,'Points can only be earned by finishing real classwork, confirmed by a teacher. This keeps rewards and the leaderboard fair for everyone.','Regular',13,K,{fw:true});
 
-// ---- detailed spec panel for this screen, 6th column ----
-function specPanel(title,rows,x,y,w){
-  const f=frame('VERTICAL',{name:'Spec · '+title,gap:14,pad:24,fill:W,stroke:K,r:12,dash:[6,4]});
-  page.appendChild(f); f.resize(w,100); f.primaryAxisSizingMode='AUTO'; f.counterAxisSizingMode='FIXED';
-  f.x=x; f.y=y;
-  text(f,title,'Bold',18,K);
-  rows.forEach((body,j)=>{
-    const r=frame('HORIZONTAL',{name:'Row '+(j+1),gap:12}); r.counterAxisAlignItems='MIN';
-    f.appendChild(r); r.layoutSizingHorizontal='FILL'; r.layoutSizingVertical='HUG';
-    const n=frame('HORIZONTAL',{name:'Number',fill:K,r:99}); n.primaryAxisAlignItems='CENTER'; n.counterAxisAlignItems='CENTER';
-    r.appendChild(n); n.resize(26,26); n.primaryAxisSizingMode='FIXED'; n.counterAxisSizingMode='FIXED';
-    text(n,String(j+1),'Bold',12,W);
-    text(r,body,'Regular',14,K,{fw:true});
-  });
-  return f;
-}
+// --- 5. spec panel for screen 05, directly beneath it ---
 specPanel('05 · Road to Glory',[
  'Frame: 1440 x 1024px, same top bar and sidebar shell as the Dashboard, with Rewards set as the active nav item.',
  'Stat row: 3 equal cards, 16px padding, corner radius 12px, 1.5px black stroke. The Pending card uses a dashed 4,3 stroke instead of solid, to mark it as not yet confirmed.',
@@ -235,4 +319,22 @@ specPanel('05 · Road to Glory',[
  'Why teacher-verified info card: #F0F0F0 fill, corner radius 12px, one short paragraph tying points and both leaderboards back to teacher verification.',
 ], 100+4*1640, 220+1024+40, 1440);
 
+// --- 6. final safety net: replace every em dash anywhere on the page ---
+const special=[
+ ['Biology test — I can','Biology test. I can'],
+ ['(1 of 12) — tap','(1 of 12), tap'],
+ ['AI can make mistakes — check','AI can make mistakes, check'],
+ ['photosynthesis) — Ms Kaushal','photosynthesis) · Ms Kaushal'],
+ ['still due — I will','still due; I will'],
+];
+let dashCount=0;
+for(const t of page.findAllWithCriteria({types:['TEXT']})){
+  if(!t.characters.includes('—')) continue;
+  let s=t.characters;
+  for(const [a,b] of special) s=s.split(a).join(b);
+  s=s.split(' — ').join(': ').split('—').join('-');
+  t.characters=s; dashCount++;
+}
+
+figma.notify('Done: 6 spec panels total, Road to Glory rebuilt, '+dashCount+' em dashes replaced');
 return {ok:true, rootId:root.id};
