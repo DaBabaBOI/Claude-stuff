@@ -1,0 +1,274 @@
+import * as THREE from 'three';
+import { HumanoidRig } from './HumanoidRig.js';
+import { createWeaponModel } from './weaponModels.js';
+import { clamp, damp, dampAngle, directionFromYaw, yawFromDirection } from '../mathUtils.js';
+
+const BASE_MOVE_SPEED = 5.4;   // metres/sec
+const SPRINT_MULTIPLIER = 1.55;
+const SPRINT_STAMINA_COST = 24; // per second
+const STAMINA_REGEN = 16;       // per second
+const STAMINA_REGEN_DELAY = 0.5;
+const ATTACK_MOVE_PENALTY = 0.35;
+const HIT_REACTION_TIME = 0.3;
+
+/**
+ * Player — the hero, and the object every later system hangs off.
+ *
+ * Phase 1 exposes exactly the surface the spec asks for:
+ *   health, stamina, position, equippedMelee, equippedRanged, equippedArmor,
+ *   abilities[3]
+ *
+ * equippedArmor is null and abilities are empty slots: those are milestones 3
+ * and 4. The getters below (`defense`, `staminaRegen`, `moveSpeedModifier`)
+ * already read through armor, so armour becomes a data change, not a rewrite.
+ */
+export class Player {
+  constructor({ scene, projectileSystem, position = new THREE.Vector3(0, 0, 4) }) {
+    this.scene = scene;
+    this.projectileSystem = projectileSystem;
+
+    this.maxHealth = 100;
+    this.health = this.maxHealth;
+    this.maxStamina = 100;
+    this.stamina = this.maxStamina;
+
+    this.position = position.clone();
+    this.velocity = new THREE.Vector3();
+    this.facing = 0;
+    this.radius = 0.4;
+
+    this.equippedMelee = null;
+    this.equippedRanged = null;
+    this.equippedArmor = null;      // milestone 3
+    this.abilities = [null, null, null]; // milestone 4 — three independent slots
+
+    /** Which weapon is in the hand socket; the other sits on the back. */
+    this.heldSlot = 'melee';
+
+    this.dead = false;
+    this.hitTimer = HIT_REACTION_TIME; // >= HIT_REACTION_TIME means "not reacting"
+    this.staminaIdleTimer = 0;
+    this.sprinting = false;
+
+    this.rig = new HumanoidRig({ cloth: 0x4a7ad4, accent: 0x27344d, skin: 0xe9c6a0 });
+    this.rig.root.position.copy(this.position);
+    scene.add(this.rig.root);
+
+    this.weaponModels = { melee: null, ranged: null };
+  }
+
+  // --- Stats that armour will modify later -------------------------------
+  get defense() {
+    return this.equippedArmor ? this.equippedArmor.defense : 0;
+  }
+
+  get staminaRegen() {
+    return STAMINA_REGEN + (this.equippedArmor?.staminaRegenBonus ?? 0);
+  }
+
+  get moveSpeedModifier() {
+    return this.equippedArmor?.movementSpeedModifier ?? 1;
+  }
+
+  get isAttacking() {
+    return Boolean(this.equippedMelee?.swinging || this.equippedRanged?.firing);
+  }
+
+  // --- Equipment ----------------------------------------------------------
+  equipMelee(weapon) {
+    this.equippedMelee = weapon;
+    this.weaponModels.melee = createWeaponModel(weapon.model);
+    this.attachWeapons();
+  }
+
+  equipRanged(weapon) {
+    this.equippedRanged = weapon;
+    this.weaponModels.ranged = createWeaponModel(weapon.model);
+    this.attachWeapons();
+  }
+
+  /** Parent the held weapon to the hand socket and the other to the back. */
+  attachWeapons() {
+    for (const slot of ['melee', 'ranged']) {
+      const model = this.weaponModels[slot];
+      if (!model) continue;
+      const socket = slot === this.heldSlot ? this.rig.handSocket : this.rig.backSocket;
+      if (model.parent !== socket) socket.add(model);
+      model.rotation.set(0, 0, 0);
+    }
+  }
+
+  setHeld(slot) {
+    if (this.heldSlot === slot) return;
+    this.heldSlot = slot;
+    this.attachWeapons();
+  }
+
+  // --- Combat -------------------------------------------------------------
+  swingMelee(state) {
+    if (this.dead || !this.equippedMelee) return false;
+    this.setHeld('melee');
+    return this.equippedMelee.use(state.time);
+  }
+
+  fireRanged(state) {
+    if (this.dead || !this.equippedRanged) return false;
+    this.setHeld('ranged');
+    const dir = directionFromYaw(this.facing);
+    const origin = {
+      x: this.position.x + dir.x * 0.55,
+      y: 1.25,
+      z: this.position.z + dir.z * 0.55,
+    };
+    const shot = this.equippedRanged.use(state.time, origin, dir);
+    if (!shot) return false;
+    this.projectileSystem.spawn(state, shot);
+    return true;
+  }
+
+  reload(state) {
+    return this.equippedRanged?.beginReload(state.time) ?? false;
+  }
+
+  takeDamage(amount, state) {
+    if (this.dead) return;
+    const applied = Math.max(1, Math.round(amount - this.defense));
+    this.health = Math.max(0, this.health - applied);
+    this.hitTimer = 0;
+    this.rig.triggerFlash(1);
+    state.pushDamageEvent({ x: this.position.x, y: 1.9, z: this.position.z }, applied, 'player');
+    if (this.health === 0) this.die();
+  }
+
+  die() {
+    this.dead = true;
+    this.deathTimer = 0;
+  }
+
+  respawn() {
+    this.dead = false;
+    this.health = this.maxHealth;
+    this.stamina = this.maxStamina;
+    this.position.set(0, 0, 4);
+    this.velocity.set(0, 0, 0);
+    this.deathTimer = 0;
+    this.hitTimer = HIT_REACTION_TIME;
+    this.rig.reset();
+    if (this.equippedRanged) {
+      this.equippedRanged.ammo = this.equippedRanged.ammoCapacity;
+      this.equippedRanged.reloading = false;
+    }
+  }
+
+  // --- Frame update -------------------------------------------------------
+  /**
+   * @param {number} dt
+   * @param {import('../GameState.js').GameState} state
+   * @param {import('../systems/InputManager.js').InputManager} input
+   */
+  update(dt, state, input) {
+    if (this.dead) {
+      this.deathTimer = (this.deathTimer ?? 0) + dt;
+      this.velocity.multiplyScalar(0.1);
+      this.updateRig(dt, state, 0);
+      return;
+    }
+
+    // --- Move -------------------------------------------------------------
+    const move = input.moveVector;
+
+    // --- Aim: cursor/right stick when there is one, otherwise face the way
+    //     we are running. Never leave facing to camera lag.
+    if (input.hasAim) {
+      this.facing = dampAngle(this.facing, input.aimYaw, 0.0001, dt);
+    } else if (move.x !== 0 || move.z !== 0) {
+      this.facing = dampAngle(this.facing, yawFromDirection(move.x, move.z), 0.0005, dt);
+    }
+    const wantsSprint = input.isDown('sprint') && (move.x !== 0 || move.z !== 0);
+    this.sprinting = wantsSprint && this.stamina > 1;
+
+    let speed = BASE_MOVE_SPEED * this.moveSpeedModifier;
+    if (this.sprinting) speed *= SPRINT_MULTIPLIER;
+    if (this.isAttacking) speed *= ATTACK_MOVE_PENALTY;
+
+    const targetVx = move.x * speed;
+    const targetVz = move.z * speed;
+    this.velocity.x = damp(this.velocity.x, targetVx, 0.0001, dt);
+    this.velocity.z = damp(this.velocity.z, targetVz, 0.0001, dt);
+
+    this.position.x += this.velocity.x * dt;
+    this.position.z += this.velocity.z * dt;
+    this.resolveCollisions(state);
+
+    // --- Stamina ----------------------------------------------------------
+    if (this.sprinting) {
+      this.stamina = Math.max(0, this.stamina - SPRINT_STAMINA_COST * dt);
+      this.staminaIdleTimer = 0;
+    } else {
+      this.staminaIdleTimer += dt;
+      if (this.staminaIdleTimer >= STAMINA_REGEN_DELAY) {
+        this.stamina = Math.min(this.maxStamina, this.stamina + this.staminaRegen * dt);
+      }
+    }
+
+    // --- Weapons ----------------------------------------------------------
+    this.equippedMelee?.update(dt, { owner: this, state });
+    this.equippedRanged?.update(dt, { owner: this, state });
+
+    if (this.hitTimer < HIT_REACTION_TIME) this.hitTimer += dt;
+
+    const speed01 = clamp(Math.hypot(this.velocity.x, this.velocity.z) / BASE_MOVE_SPEED, 0, 1);
+    this.updateRig(dt, state, speed01);
+  }
+
+  /** Push out of the arena walls and out of any enemy we are overlapping. */
+  resolveCollisions(state) {
+    const { arena } = state;
+    this.position.x = clamp(this.position.x, arena.minX + this.radius, arena.maxX - this.radius);
+    this.position.z = clamp(this.position.z, arena.minZ + this.radius, arena.maxZ - this.radius);
+
+    for (const enemy of state.enemies) {
+      if (enemy.dead) continue;
+      const dx = this.position.x - enemy.position.x;
+      const dz = this.position.z - enemy.position.z;
+      const dist = Math.hypot(dx, dz);
+      const minDist = this.radius + enemy.radius;
+      if (dist > 0 && dist < minDist) {
+        const push = (minDist - dist) / dist;
+        this.position.x += dx * push;
+        this.position.z += dz * push;
+      }
+    }
+  }
+
+  updateRig(dt, state, speed01) {
+    let rigState = 'idle';
+    let attackProgress = 0;
+    let attackKind = 'sword';
+
+    if (this.dead) {
+      rigState = 'death';
+    } else if (this.equippedMelee?.swinging) {
+      rigState = 'attack-melee';
+      attackProgress = this.equippedMelee.swingProgress;
+    } else if (this.equippedRanged?.firing) {
+      rigState = 'attack-ranged';
+      attackProgress = this.equippedRanged.fireProgress;
+      attackKind = 'bow';
+    } else if (speed01 > 0.03) {
+      rigState = 'walk';
+    }
+
+    this.rig.root.position.set(this.position.x, this.position.y, this.position.z);
+    this.rig.root.rotation.y = this.facing;
+    this.rig.update(dt, {
+      time: state.time,
+      state: rigState,
+      moveSpeed01: speed01,
+      attackProgress,
+      attackKind,
+      hitProgress: this.hitTimer / HIT_REACTION_TIME,
+      deathProgress: (this.deathTimer ?? 0) / 0.8,
+    });
+  }
+}

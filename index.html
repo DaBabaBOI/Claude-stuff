@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Action RPG — Phase 1 Skeleton</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0d1016; }
+  body { font: 13px/1.4 ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif; color: #e7ecf3; }
+  canvas { display: block; }
+
+  #ui { position: fixed; inset: 0; pointer-events: none; }
+
+  .panel {
+    position: absolute; padding: 10px 12px; border-radius: 10px;
+    background: rgba(12, 16, 24, 0.72); border: 1px solid rgba(255,255,255,0.08);
+    backdrop-filter: blur(4px);
+  }
+  #stats { left: 16px; bottom: 16px; width: 260px; }
+  #target { left: 50%; top: 16px; transform: translateX(-50%); width: 280px; text-align: center; }
+  #help { right: 16px; bottom: 16px; width: 230px; opacity: 0.85; }
+  #help b { color: #9fd0ff; font-weight: 600; }
+
+  .bar { height: 12px; border-radius: 6px; background: rgba(255,255,255,0.1); overflow: hidden; margin: 4px 0 8px; }
+  .bar > i { display: block; height: 100%; width: 100%; transition: width 90ms linear; }
+  #health-fill { background: linear-gradient(90deg, #d8464a, #ff7a6e); }
+  #stamina-fill { background: linear-gradient(90deg, #35a06a, #7fe0a8); }
+  #dummy-fill { background: linear-gradient(90deg, #c79b3e, #f0cd7a); }
+
+  .row { display: flex; justify-content: space-between; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; opacity: 0.75; }
+  .chips { display: flex; gap: 6px; margin-top: 8px; }
+  .chip {
+    flex: 1; padding: 6px 8px; border-radius: 7px; font-size: 11px; text-align: center;
+    background: rgba(255,255,255,0.06); border: 1px solid transparent; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .chip.held { border-color: #9fd0ff; background: rgba(159,208,255,0.16); color: #ffffff; }
+
+  #floaters { position: absolute; inset: 0; }
+  .floater {
+    position: absolute; top: 0; left: 0; font-weight: 700; font-size: 20px;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.8); will-change: transform, opacity;
+  }
+  .floater-melee { color: #ffe08a; }
+  .floater-ranged { color: #a8e6ff; }
+  .floater-player { color: #ff8686; }
+
+  kbd {
+    background: rgba(255,255,255,0.1); border-radius: 4px; padding: 1px 5px;
+    font: inherit; font-size: 11px;
+  }
+</style>
+</head>
+<body>
+  <div id="ui">
+    <div class="panel" id="target">
+      <div class="row"><span id="dummy-text">Test Dummy</span></div>
+      <div class="bar"><i id="dummy-fill"></i></div>
+    </div>
+
+    <div class="panel" id="stats">
+      <div class="row"><span>Health</span><span id="health-text">100 / 100</span></div>
+      <div class="bar"><i id="health-fill"></i></div>
+      <div class="row"><span>Stamina</span><span id="ammo-row">Ammo <b id="ammo-text">12 / 12</b></span></div>
+      <div class="bar"><i id="stamina-fill"></i></div>
+      <div class="chips">
+        <div class="chip held" id="chip-melee">1 Sword</div>
+        <div class="chip" id="chip-ranged">2 Bow</div>
+      </div>
+    </div>
+
+    <div class="panel" id="help">
+      <div><b>WASD</b> move &nbsp; <b>Shift</b> sprint</div>
+      <div><b>Mouse</b> aim &nbsp; <b>LMB</b> swing &nbsp; <b>RMB</b> shoot</div>
+      <div><b>R</b> reload &nbsp; <b>1/2</b> hold weapon</div>
+      <div><b>H</b> hurt self (test) &nbsp; <b>Q</b> reset</div>
+    </div>
+
+    <div id="floaters"></div>
+  </div>
+
+  <script type="importmap">
+  { "imports": { "three": "./vendor/three.module.js" } }
+  </script>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

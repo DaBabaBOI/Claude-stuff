@@ -1,0 +1,14 @@
+{
+  "name": "action-rpg-skeleton",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Phase 1 skeleton for a Minecraft Dungeons-style action RPG (Three.js, no build step)",
+  "devDependencies": {
+    "playwright": "^1.56.0"
+  },
+  "scripts": {
+    "start": "node tools/serve.mjs",
+    "verify": "node tools/verify.mjs"
+  }
+}
