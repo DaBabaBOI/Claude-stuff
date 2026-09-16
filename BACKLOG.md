@@ -27,9 +27,10 @@ being flattened onto the bow's plane. Both are asserted in the suite.
 
 Still wrong or missing:
 
-- **The bow-arm wrist is still locked.** The bow hangs off `handSocket` with a
-  fixed roll, so it cannot rotate independently of the forearm. A wrist node
-  under the hand socket would let the bow cant with the shot.
+- **The bow-arm wrist is still locked.** The bow is oriented outright each
+  frame (upright, square to the arrow) rather than following the hand, which
+  fixes the lean but means the wrist has no articulation of its own — the bow
+  cannot roll with the shot or settle after a loose.
 - **The draw path is a straight line.** The IK targets lerp between two points
   (hand beside the bow, hand at the anchor), so the hand travels straight
   instead of arcing the way a real draw does.

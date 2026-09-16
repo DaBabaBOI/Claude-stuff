@@ -513,6 +513,50 @@ try {
       degreesOffAim: (Math.acos(Math.max(-1, Math.min(1, dot))) * 180) / Math.PI,
     };
   });
+  // The bow must stand upright and square to the arrow. Left to itself it
+  // inherits the hand's roll, which comes from the elbow's bend axis and has
+  // nothing to do with up — that left it leaning 21 degrees and skewed 19
+  // degrees away from the arrow it was supposedly shooting.
+  const angle = await page.evaluate(async () => {
+    const g = window.__game;
+    const bow = g.player.equippedRanged;
+    const savedUpdate = g.input.update;
+    g.input.update = () => {};
+    bow.nextReadyAt = 0;
+    bow.ammo = bow.ammoCapacity;
+    g.player.position.set(0, 0, 0);
+    g.player.facing = 0;
+    g.player.drawRanged(g.state);
+    for (let i = 0; i < 120 && g.player.drawStrength < 0.99; i++) {
+      await new Promise((r) => requestAnimationFrame(r));
+    }
+    const model = g.player.rig.offHandSocket.children[0];
+    const art = model.children.find((c) => c.type === 'Group');
+    art.updateWorldMatrix(true, false);
+    const m = art.matrixWorld.elements;
+    const axis = (i) => {
+      const v = { x: m[i * 4], y: m[i * 4 + 1], z: m[i * 4 + 2] };
+      const len = Math.hypot(v.x, v.y, v.z) || 1;
+      return { x: v.x / len, y: v.y / len, z: v.z / len };
+    };
+    const limb = axis(2);   // tip to tip
+    const back = axis(1);   // art +Y points back at the archer
+    const deg = (d) => (Math.acos(Math.max(-1, Math.min(1, d))) * 180) / Math.PI;
+    // Compare the bow's forward face against where the hero actually faces —
+    // not world -Z, which is only the same thing if nothing has turned.
+    const facing = { x: -Math.sin(g.player.facing), z: -Math.cos(g.player.facing) };
+    const face = { x: -back.x, y: -back.y, z: -back.z };
+    const dot = face.x * facing.x + face.z * facing.z;
+    bow.cancelDraw();
+    g.input.update = savedUpdate;
+    return { limbTilt: deg(Math.abs(limb.y)), faceOffAim: deg(dot) };
+  });
+  check('the bow stands upright', angle.limbTilt < 15,
+    `${angle.limbTilt.toFixed(1)}° from vertical`);
+  check('the bow is square to the arrow it is shooting',
+    Math.abs(angle.faceOffAim - aim.degreesOffAim) < 3,
+    `bow face ${angle.faceOffAim.toFixed(1)}° off aim, arrow ${aim.degreesOffAim.toFixed(1)}°`);
+
   check('the nocked arrow points where you are aiming',
     aim.visible && aim.degreesOffAim < 12,
     `${aim.degreesOffAim.toFixed(1)}° off the aim direction`);

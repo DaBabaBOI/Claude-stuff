@@ -149,7 +149,7 @@ function createBow() {
    */
   const art = new THREE.Group();
   art.position.y = BOW_RADIUS; // grip sits at the riser's middle, i.e. the socket
-  art.rotation.y = 0.45;       // canted, so it is not a single line from top-down
+  art.rotation.y = 0.14;       // a slight deliberate cant, off a level hand
   group.add(art);
 
   const riser = new THREE.Mesh(

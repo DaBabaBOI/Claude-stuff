@@ -251,6 +251,15 @@ hand draws it, so the hand lands on the already-resting string and nothing looks
 The riser is now a shallow 90° arc: 1.2 m tip to tip, with the string a realistic 0.25 m
 behind the grip and room to actually draw it.
 
+**The bow gets its own orientation.** Left alone it inherits the hand's, and the hand's
+roll comes from the IK — whose X axis is the *elbow's bend axis*, which has nothing to do
+with which way is up, or with where the arrow goes. That left the bow leaning 21° and
+skewed 19° away from the arrow it was shooting. It is now built outright each frame: local
+−Y along the arrow (nock to grip), local +Z as close to world up as that leaves it. The
+grip sits at the socket's origin, so rotating it this way pivots the bow about the hand
+and never pulls it out of the archer's grasp. Its own 8° cant goes on top of a known-square
+starting point.
+
 **The arrow line is the stance.** The arrow runs between the two hands, so if they are not
 roughly one in front of the other, the arrow points wide no matter how it is oriented. A
 real archer stands side-on, which puts both hands on the aim line for free; this character
@@ -451,7 +460,7 @@ tools/
 mouse clicks, and waits on game state rather than wall-clock sleeps (headless software
 rendering runs at ~10 fps, so fixed sleeps mean nothing).
 
-**57/57 checks passing**, covering: boot and render; WASD movement; mouse aim; melee swing
+**59/59 checks passing**, covering: boot and render; WASD movement; mouse aim; melee swing
 and damage numbers; bow draw, release, travel, arc height, ground stick and hit; reload;
 player hit reaction; zombie chase, telegraph, strike, mid-windup movement and death;
 skeleton draw, loose, damage and range keeping; team-correct arrows; charge scaling for
@@ -471,6 +480,8 @@ PASS  forward is faster than strafing, strafing faster than backpedalling  (1.00
 PASS  the draw hand grips the actual bowstring  (hand to nocking point: 0.0 cm)
 PASS  the draw is in proportion to the bow  (0.52 m draw on a 1.20 m bow (0.44))
 PASS  the nocked arrow points where you are aiming  (7.8° off the aim direction)
+PASS  the bow stands upright  (8.7° from vertical)
+PASS  the bow is square to the arrow it is shooting  (bow face 7.8°, arrow 7.8°)
 PASS  arrows on the back match the arrows you have  (12 shown at full, 4 shown at 4)
 PASS  walking over a bundle refills the quiver  (2 -> 7 arrows)
 PASS  IK puts both hands on their targets  (bow hand off by 0.9 cm, draw hand 2.0 cm)
@@ -479,7 +490,7 @@ PASS  armoured zombies wear armour and soak damage  (took 17 vs 20, defense 3)
 PASS  Q heals you  (40 -> 72 health)
 PASS  the heal goes on cooldown  (7s cooldown, 7.0s left)
 
-57/57 checks passed
+59/59 checks passed
 ```
 
 ## Deliberately not built yet

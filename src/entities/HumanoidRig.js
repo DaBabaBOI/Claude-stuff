@@ -103,6 +103,16 @@ const _ikZ = new THREE.Vector3();
 const _ikBasis = new THREE.Matrix4();
 const _ikQuat = new THREE.Quaternion();
 
+const _bowUp = new THREE.Vector3(0, 1, 0);
+const _bowFlight = new THREE.Vector3();
+const _bowGrip = new THREE.Vector3();
+const _bowX = new THREE.Vector3();
+const _bowY = new THREE.Vector3();
+const _bowZ = new THREE.Vector3();
+const _bowBasis = new THREE.Matrix4();
+const _bowQuat = new THREE.Quaternion();
+const _bowSocketQuat = new THREE.Quaternion();
+
 /** Hand targets in body space, and which way each elbow points. */
 const BOW_HAND = new THREE.Vector3();
 const DRAW_HAND = new THREE.Vector3();
@@ -283,6 +293,50 @@ export class HumanoidRig {
   setHeadVisible(visible) {
     this.head.visible = visible;
     this.brow.visible = visible;
+  }
+
+  /**
+   * Orient the bow so its face squares up to the arrow, standing upright.
+   *
+   * Left alone, the bow inherits the hand's orientation — and the hand's roll
+   * comes from the IK, whose X axis is the elbow's bend axis. That has nothing
+   * to do with which way is up (it left the bow leaning 21 degrees) or with
+   * where the arrow goes (the arrow runs hand-to-grip, about 19 degrees off the
+   * forearm), so the bow ended up skewed to both.
+   *
+   * Instead the bow is given its own orientation outright:
+   *
+   *     local -Y  ->  along the arrow, nock to grip
+   *     local +Z  ->  tip to tip, as close to world up as that leaves it
+   *
+   * The grip sits at the socket's origin, so rotating the bow this way pivots
+   * it about the hand and never pulls it out of the archer's grasp. The model's
+   * own cant is then applied on top of a known-square starting point.
+   */
+  alignBow(drawHandWorld) {
+    const bow = this.offHandSocket.children[0];
+    if (!bow) return;
+
+    this.offHandSocket.updateWorldMatrix(true, false);
+    this.offHandSocket.getWorldPosition(_bowGrip);
+
+    _bowFlight.subVectors(_bowGrip, drawHandWorld);
+    if (_bowFlight.lengthSq() < 1e-6) return;
+    _bowFlight.normalize();
+
+    _bowY.copy(_bowFlight).negate(); // local +Y points back at the archer
+    _bowZ.copy(_bowUp).addScaledVector(_bowY, -_bowUp.dot(_bowY));
+    if (_bowZ.lengthSq() < 1e-6) return; // shooting straight up or down
+    _bowZ.normalize();
+    _bowX.crossVectors(_bowY, _bowZ).normalize();
+
+    _bowBasis.makeBasis(_bowX, _bowY, _bowZ);
+    _bowQuat.setFromRotationMatrix(_bowBasis);
+
+    // The socket already carries a rotation; cancel it so the bow ends up with
+    // the world orientation just built.
+    this.offHandSocket.getWorldQuaternion(_bowSocketQuat);
+    bow.quaternion.copy(_bowSocketQuat.invert()).multiply(_bowQuat);
   }
 
   /** Flash the whole body white for a moment (hit feedback at blockout). */
@@ -514,8 +568,12 @@ export class HumanoidRig {
       const drawing = state === 'draw-ranged';
       if (drawing) {
         this.drawHandSocket.getWorldPosition(this._drawHandWorld);
+        this.alignBow(this._drawHandWorld);
         held.setNock(this._drawHandWorld, drawAmount);
       } else {
+        // Not drawing: the bow just sits in the hand, so hand it back its own
+        // orientation rather than leaving it frozen at the last aim.
+        held.quaternion.identity();
         held.setNock(null, 0);
       }
     }
