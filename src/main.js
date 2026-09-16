@@ -2,10 +2,11 @@ import * as THREE from 'three';
 import { GameState } from './GameState.js';
 import { Player } from './entities/Player.js';
 import { Enemy } from './entities/Enemy.js';
+import { Zombie } from './entities/Zombie.js';
 import { ProjectileSystem } from './combat/ProjectileSystem.js';
 import { createMelee, createRanged } from './combat/weapons.config.js';
 import { InputManager } from './systems/InputManager.js';
-import { CameraController } from './systems/CameraController.js';
+import { CameraController, VIEW_FIRST_PERSON, VIEW_TOP_DOWN } from './systems/CameraController.js';
 import { HUD } from './ui/HUD.js';
 
 const MAX_DELTA = 1 / 20; // never simulate more than a 50 ms step
@@ -67,7 +68,47 @@ player.equipMelee(createMelee('sword'));
 player.equipRanged(createRanged('bow'));
 state.player = player;
 
-state.enemies.push(new Enemy({ scene, position: new THREE.Vector3(0, 0, -4) }));
+// The dummy stays: it is the thing you tune weapon feel against.
+const dummy = new Enemy({ scene, position: new THREE.Vector3(0, 0, -6) });
+state.enemies.push(dummy);
+
+// --- Zombie waves ----------------------------------------------------------
+const WAVE_SIZE = 4;
+const WAVE_DELAY = 6;
+let nextWaveAt = 4;
+
+function spawnWave() {
+  const count = WAVE_SIZE + Math.floor(state.time / 45); // slowly gets busier
+  for (let i = 0; i < count; i++) {
+    // Ring spawn, well clear of the player.
+    const angle = Math.random() * Math.PI * 2;
+    const radius = 12 + Math.random() * 5;
+    const position = new THREE.Vector3(
+      THREE.MathUtils.clamp(player.position.x + Math.cos(angle) * radius, -18, 18),
+      0,
+      THREE.MathUtils.clamp(player.position.z + Math.sin(angle) * radius, -18, 18)
+    );
+    state.enemies.push(new Zombie({ scene, position }));
+  }
+}
+
+function updateWaves(dt) {
+  const alive = state.enemies.filter((e) => e instanceof Zombie && !e.dead).length;
+
+  // Clean up corpses once they have finished falling over.
+  for (let i = state.enemies.length - 1; i >= 0; i--) {
+    const enemy = state.enemies[i];
+    if (enemy instanceof Zombie && enemy.dead && enemy.deathTimer > enemy.removeAfter) {
+      scene.remove(enemy.rig.root);
+      state.enemies.splice(i, 1);
+    }
+  }
+
+  if (state.wavesEnabled && alive === 0 && state.time >= nextWaveAt) {
+    spawnWave();
+    nextWaveAt = state.time + WAVE_DELAY;
+  }
+}
 
 const input = new InputManager(renderer.domElement);
 const cameraController = new CameraController(camera);
@@ -77,9 +118,32 @@ const hud = new HUD(document);
 // --- Loop ------------------------------------------------------------------
 const clock = new THREE.Clock();
 
+function setView(mode) {
+  cameraController.setMode(mode);
+  const firstPerson = mode === VIEW_FIRST_PERSON;
+  player.rig.setHeadVisible(!firstPerson);
+  // Movement basis: world-space under the fixed top-down camera, camera-space
+  // in first person.
+  input.moveBasisYaw = firstPerson ? player.facing : null;
+  if (firstPerson) {
+    input.lookYaw = player.facing;
+    renderer.domElement.requestPointerLock?.();
+  } else {
+    document.exitPointerLock?.();
+    cameraController.snapTo(player.position);
+  }
+  document.body.classList.toggle('first-person', firstPerson);
+}
+
 function handleActions() {
+  const firstPerson = cameraController.isFirstPerson;
   if (input.justPressed('melee')) player.swingMelee(state);
-  if (input.justPressed('ranged')) player.fireRanged(state);
+  if (input.justPressed('ranged')) {
+    player.fireRanged(state, firstPerson ? input.lookPitch : null);
+  }
+  if (input.justPressed('toggle-view')) {
+    setView(firstPerson ? VIEW_TOP_DOWN : VIEW_FIRST_PERSON);
+  }
   if (input.justPressed('reload')) player.reload(state);
   if (input.justPressed('hold-melee')) player.setHeld('melee');
   if (input.justPressed('hold-ranged')) player.setHeld('ranged');
@@ -89,9 +153,18 @@ function handleActions() {
 
 function resetScene() {
   player.respawn();
-  for (const enemy of state.enemies) enemy.respawn();
+  for (let i = state.enemies.length - 1; i >= 0; i--) {
+    const enemy = state.enemies[i];
+    if (enemy instanceof Zombie) {
+      scene.remove(enemy.rig.root);
+      state.enemies.splice(i, 1);
+    } else {
+      enemy.respawn();
+    }
+  }
   projectiles.clear(state);
-  cameraController.snapTo(player.position);
+  nextWaveAt = state.time + 2;
+  if (!cameraController.isFirstPerson) cameraController.snapTo(player.position);
 }
 
 function tick() {
@@ -102,16 +175,28 @@ function tick() {
   state.time += dt;
   state.frame += 1;
 
-  input.update(camera, player.position);
-  handleActions();
+  if (!state.paused) {
+    input.update(camera, player.position);
+    handleActions();
 
-  player.update(dt, state, input);
-  for (const enemy of state.enemies) enemy.update(dt, state);
-  projectiles.update(dt, state);
+    player.update(dt, state, input);
+    for (const enemy of state.enemies) enemy.update(dt, state);
+    projectiles.update(dt, state);
+    updateWaves(dt);
 
-  cameraController.update(dt, player.position, input.hasAim ? input.aimPoint : null);
-  hud.update(dt, state, camera);
+    // In first person the hero turns with the mouse, so the movement basis has
+    // to follow them every frame.
+    if (cameraController.isFirstPerson) input.moveBasisYaw = player.facing;
 
+    cameraController.update(
+      dt,
+      player.position,
+      input.hasAim ? input.aimPoint : null,
+      { yaw: player.facing, pitch: input.lookPitch }
+    );
+  }
+
+  hud.update(state.paused ? 0 : dt, state, camera);
   renderer.render(scene, camera);
 }
 
@@ -125,4 +210,15 @@ tick();
 
 // Exposed so the smoke test (tools/verify.mjs) can drive the game headlessly.
 // Harmless in normal play, and handy in the console while tuning feel.
-window.__game = { state, player, input, projectiles, resetScene, scene, camera };
+window.__game = {
+  state, player, input, projectiles, scene, camera, cameraController, hud,
+  resetScene, setView, spawnWave,
+  clearZombies() {
+    for (let i = state.enemies.length - 1; i >= 0; i--) {
+      if (state.enemies[i].isZombie) {
+        scene.remove(state.enemies[i].rig.root);
+        state.enemies.splice(i, 1);
+      }
+    }
+  },
+};

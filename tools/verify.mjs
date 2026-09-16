@@ -47,6 +47,15 @@ try {
   await page.goto(PAGE_URL, { waitUntil: 'load' });
   check('game boots and renders frames', await waitFor(() => window.__game?.state?.frame > 5));
 
+  // Quiet sandbox: zombie waves would otherwise kill the test hero mid-check.
+  const quiet = async () => page.evaluate(() => {
+    window.__game.state.wavesEnabled = false;
+    window.__game.clearZombies();
+    window.__game.player.health = window.__game.player.maxHealth;
+    window.__game.player.dead = false;
+  });
+  await quiet();
+
   // --- 1. movement ----------------------------------------------------------
   const startZ = await page.evaluate(() => window.__game.player.position.z);
   await page.keyboard.down('w');
@@ -157,6 +166,140 @@ try {
   check('reload refills the magazine',
     await waitFor(() => window.__game.player.equippedRanged.ammo ===
       window.__game.player.equippedRanged.ammoCapacity));
+
+  // --- 6. ballistic arrows ---------------------------------------------------
+  const flight = await page.evaluate(async () => {
+    const { player, state, projectiles } = window.__game;
+    projectiles.clear(state);
+    player.position.set(8, 0, 14); // clear lane: the dummy is at x=0
+    player.facing = 0;
+    player.equippedRanged.nextReadyAt = 0;
+    player.equippedRanged.ammo = 5;
+    player.fireRanged(state);
+
+    const samples = [];
+    for (let i = 0; i < 240; i++) {
+      await new Promise((r) => requestAnimationFrame(r));
+      const p = state.projectiles[0];
+      if (!p) break;
+      samples.push({ y: p.y, vy: p.vy, stuck: p.stuck, z: p.z });
+      if (p.stuck) break;
+    }
+    return {
+      launchY: samples[0]?.y ?? 0,
+      peakY: Math.max(...samples.map((s) => s.y)),
+      finalY: samples.at(-1)?.y ?? null,
+      roseThenFell: samples.some((s) => s.vy > 0) && samples.some((s) => s.vy < 0),
+      stuck: samples.at(-1)?.stuck ?? false,
+      travelled: samples.length ? 14 - samples.at(-1).z : 0,
+      hitSomething: state.enemies.some((e) => e.health < e.maxHealth && e.position.x > 4),
+      pitchDeg: (player.equippedRanged.launchPitch * 180) / Math.PI,
+    };
+  });
+  check('arrow arcs: rises, then falls', flight.roseThenFell,
+    `peak ${flight.peakY.toFixed(2)} m, launch pitch ${flight.pitchDeg.toFixed(1)} deg`);
+  check('arrow arc stays inside a human silhouette', flight.peakY - flight.launchY <= 0.55,
+    `+${(flight.peakY - flight.launchY).toFixed(2)} m above the muzzle`);
+  check('arrow sticks in the ground where it lands', flight.stuck,
+    `after ${flight.travelled.toFixed(1)} m`);
+
+  // --- 7. zombies ------------------------------------------------------------
+  // Headless software rendering runs at ~10 fps, so these wait on game state
+  // instead of counting frames.
+  await page.evaluate(() => {
+    const g = window.__game;
+    g.clearZombies();
+    g.player.position.set(0, 0, 0);
+    g.player.health = g.player.maxHealth;
+    g.player.facing = 0;
+    g.spawnWave();
+    const z = g.state.enemies.find((e) => e.isZombie);
+    z.position.set(0, 0, -5);
+    z.__seen = [];
+    const watch = () => {
+      if (!z.__seen.includes(z.state)) z.__seen.push(z.state);
+      if (!z.dead) requestAnimationFrame(watch);
+    };
+    watch();
+  });
+
+  check('zombie chases the player down', await waitFor(() => {
+    const z = window.__game.state.enemies.find((e) => e.isZombie);
+    return z && Math.hypot(z.position.x, z.position.z) < 2.2;
+  }), 'from 5 m away');
+
+  const struck = await waitFor(() => window.__game.player.health < window.__game.player.maxHealth);
+  const zState = await page.evaluate(() => {
+    const z = window.__game.state.enemies.find((e) => e.isZombie);
+    return { seen: z.__seen, health: window.__game.player.health, windup: z.windupTime };
+  });
+  check('zombie telegraphs a windup, then strikes',
+    zState.seen.includes('windup') && zState.seen.includes('strike'),
+    `${zState.seen.join(' -> ')}; windup ${zState.windup}s`);
+  check('zombie melee damages the player', struck, `player health ${zState.health}`);
+
+  const swung = await page.evaluate(() => {
+    const g = window.__game;
+    const z = g.state.enemies.find((e) => e.isZombie && !e.dead);
+    z.health = 8;                    // one swing from death
+    z.position.set(0, 0, -1.4);
+    g.player.position.set(0, 0, 0);
+    g.player.facing = 0;
+    g.player.equippedMelee.nextReadyAt = 0;
+    return g.player.swingMelee(g.state);
+  });
+  check('zombie dies and falls over', swung && await waitFor(() => {
+    const z = window.__game.state.enemies.find((e) => e.isZombie);
+    return z && z.dead && z.rig.root.rotation.x > 0.8;
+  }));
+
+  // --- 8. first-person mode --------------------------------------------------
+  await quiet();
+  const fp = await page.evaluate(async () => {
+    const g = window.__game;
+    g.player.position.set(0, 0, 0);
+    g.setView('first-person');
+    g.input.lookYaw = Math.PI / 2;   // face world -X
+    g.input.lookPitch = -0.2;
+    const cam = g.camera;
+    return {
+      mode: g.cameraController.mode,
+      headHidden: g.player.rig.head.visible === false,
+      eyeY: cam.position.y,
+      camYaw: cam.rotation.y,
+      playerFacing: g.player.facing,
+      order: cam.rotation.order,
+    };
+  });
+  // The camera only moves on the next frame, so assert the eye height after one.
+  const eyeSettled = await waitFor(() => Math.abs(window.__game.camera.position.y - 1.64) < 0.01);
+  const eyeY = await page.evaluate(() => window.__game.camera.position.y);
+  check('V switches to first person', fp.mode === 'first-person' && fp.headHidden && eyeSettled,
+    `eye at y=${eyeY.toFixed(2)}, head hidden`);
+  const fpTurned = await waitFor(() => Math.abs(window.__game.player.facing - Math.PI / 2) < 0.05);
+  const after = await page.evaluate(() => ({
+    facing: window.__game.player.facing,
+    camYaw: window.__game.camera.rotation.y,
+    camPitch: window.__game.camera.rotation.x,
+  }));
+  check('mouse-look drives the hero facing and the camera',
+    fpTurned && fp.order === 'YXZ' && Math.abs(after.camPitch + 0.2) < 0.01,
+    `facing ${after.facing.toFixed(2)} rad, camera pitch ${after.camPitch.toFixed(2)}`);
+
+  const fpMove = await page.evaluate(async () => {
+    const g = window.__game;
+    // In first person W must go where the camera looks, not world -Z.
+    g.player.position.set(0, 0, 0);
+    g.input.moveBasisYaw = g.player.facing;
+    g.input.down.add('up');
+    for (let i = 0; i < 25; i++) await new Promise((r) => requestAnimationFrame(r));
+    g.input.down.delete('up');
+    const p = { x: g.player.position.x, z: g.player.position.z };
+    g.setView('top-down');
+    return p;
+  });
+  check('first-person W walks where you look', fpMove.x < -0.5 && Math.abs(fpMove.z) < 1.2,
+    `moved to x=${fpMove.x.toFixed(2)}, z=${fpMove.z.toFixed(2)}`);
 
   await page.screenshot({ path: process.env.SHOT ?? 'screenshot.png' });
   check('no console or page errors', errors.length === 0, errors.slice(0, 2).join(' | '));

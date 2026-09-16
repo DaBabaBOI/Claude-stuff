@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { yawFromDirection } from '../mathUtils.js';
+import { clamp, directionFromYaw, yawFromDirection } from '../mathUtils.js';
 
 /**
  * InputManager — turns keyboard/mouse (or a gamepad) into two simple things
@@ -27,7 +27,12 @@ const KEY_BINDINGS = {
   Digit2: 'hold-ranged',
   KeyH: 'debug-hurt',
   KeyQ: 'debug-reset',
+  KeyV: 'toggle-view',
+  Space: 'jump',
 };
+
+const PITCH_LIMIT = Math.PI / 2 - 0.05;
+const LOOK_SENSITIVITY = 0.0022;
 
 export class InputManager {
   constructor(domElement) {
@@ -45,6 +50,20 @@ export class InputManager {
     this.raycaster = new THREE.Raycaster();
     this.groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
     this.gamepadIndex = null;
+
+    /**
+     * Mouse-look state, used by first-person mode. In top-down mode aim comes
+     * from the ground ray instead and these are left alone.
+     */
+    this.lookYaw = 0;
+    this.lookPitch = 0;
+    this.pointerLocked = false;
+    /**
+     * When set, WASD is interpreted relative to this yaw (first person: W is
+     * "the way the camera points"). When null, WASD is world-space, which is
+     * what a fixed top-down camera wants.
+     */
+    this.moveBasisYaw = null;
 
     this.bindEvents();
   }
@@ -64,14 +83,33 @@ export class InputManager {
     window.addEventListener('blur', () => this.down.clear());
 
     this.dom.addEventListener('pointermove', (e) => {
+      if (this.pointerLocked) {
+        this.lookYaw -= e.movementX * LOOK_SENSITIVITY;
+        this.lookPitch = clamp(
+          this.lookPitch - e.movementY * LOOK_SENSITIVITY,
+          -PITCH_LIMIT,
+          PITCH_LIMIT
+        );
+        return;
+      }
       const rect = this.dom.getBoundingClientRect();
       this.pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
       this.pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
     });
     this.dom.addEventListener('pointerdown', (e) => {
+      // In first person the first click captures the pointer; it must not also
+      // swing the sword, or every re-focus would attack.
+      if (this.moveBasisYaw !== null && !this.pointerLocked) {
+        this.dom.requestPointerLock?.();
+        return;
+      }
       const action = e.button === 2 ? 'ranged' : 'melee';
       if (!this.down.has(action)) this._queued.add(action);
       this.down.add(action);
+    });
+
+    document.addEventListener('pointerlockchange', () => {
+      this.pointerLocked = document.pointerLockElement === this.dom;
     });
     window.addEventListener('pointerup', (e) => {
       this.down.delete(e.button === 2 ? 'ranged' : 'melee');
@@ -102,8 +140,27 @@ export class InputManager {
       }
     }
 
-    const len = Math.hypot(x, z);
-    this.moveVector = len > 1 ? { x: x / len, z: z / len } : { x, z };
+    // Map stick/key input into world space. Top-down: the camera never
+    // rotates, so screen-up is world -Z and raw input IS world input.
+    // First person: rotate it onto the camera's basis.
+    let wx = x;
+    let wz = z;
+    if (this.moveBasisYaw !== null) {
+      const forward = directionFromYaw(this.moveBasisYaw);
+      const rightX = -forward.z;
+      const rightZ = forward.x;
+      wx = rightX * x + forward.x * -z;
+      wz = rightZ * x + forward.z * -z;
+    }
+    const len = Math.hypot(wx, wz);
+    this.moveVector = len > 1 ? { x: wx / len, z: wz / len } : { x: wx, z: wz };
+
+    // First person: the mouse IS the aim, no ground ray involved.
+    if (this.moveBasisYaw !== null) {
+      this.aimYaw = this.lookYaw;
+      this.hasAim = true;
+      return;
+    }
 
     // Aim: right stick wins if it is being pushed, otherwise the mouse ray.
     // hasAim is recomputed every frame, never latched: a cursor sitting on top

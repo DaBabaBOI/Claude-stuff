@@ -32,6 +32,7 @@ export const RIG_STATES = /** @type {const} */ ([
   'idle',
   'walk',
   'attack-melee',
+  'attack-claw',
   'attack-ranged',
   'hit',
   'death',
@@ -48,6 +49,16 @@ function limb(geometry, material, length) {
 
 const easeOut = (t) => 1 - Math.pow(1 - t, 3);
 const easeIn = (t) => t * t;
+
+/**
+ * Grip tilts for the hand socket, in radians away from "in line with the arm".
+ * Carrying: blade angled forward so the tip clears the ground while the arm
+ * hangs down. Slashing: nearly in line with the arm, so the blade traces the
+ * same horizontal arc the damage cone uses.
+ */
+const GRIP_CARRY = 1.0;
+const GRIP_SLASH = 0.0;
+const GRIP_BOW = 0.35;
 
 export class HumanoidRig {
   /**
@@ -92,6 +103,7 @@ export class HumanoidRig {
     );
     brow.position.set(0, 1.79, -0.18);
     this.body.add(brow);
+    this.brow = brow;
 
     const armGeometry = new THREE.CylinderGeometry(0.085, 0.075, ARM_LENGTH, 8);
     const legGeometry = new THREE.CylinderGeometry(0.11, 0.095, LEG_LENGTH, 8);
@@ -100,6 +112,14 @@ export class HumanoidRig {
     this.shoulderL.position.set(-0.34, SHOULDER_Y, 0);
     this.shoulderR = limb(armGeometry, this.materials.skin, ARM_LENGTH);
     this.shoulderR.position.set(0.34, SHOULDER_Y, 0);
+    // YXZ: rotation.y is applied last, so it sweeps the arm horizontally around
+    // the body no matter how far the arm is already raised. With the default
+    // XYZ order a "horizontal" slash would tip as the arm lifted.
+    //   rotation.x  raise forward (+) / back (-)
+    //   rotation.y  sweep left (+) / right (-)
+    //   rotation.z  push out to the side
+    this.shoulderL.rotation.order = 'YXZ';
+    this.shoulderR.rotation.order = 'YXZ';
     this.body.add(this.shoulderL, this.shoulderR);
 
     this.hipL = limb(legGeometry, this.materials.accent, LEG_LENGTH);
@@ -111,16 +131,28 @@ export class HumanoidRig {
     // --- Attachment points. Swap what is parented here, never the rig. ---
     this.handSocket = new THREE.Object3D();
     this.handSocket.position.set(0, -ARM_LENGTH - 0.02, 0);
+    this.handSocket.rotation.x = GRIP_CARRY;
     this.shoulderR.add(this.handSocket);
 
     this.backSocket = new THREE.Object3D();
-    this.backSocket.position.set(0, TORSO_Y + 0.15, 0.24);
-    this.backSocket.rotation.set(0, 0, Math.PI * 0.18);
+    // Slung diagonally: grip at the lower right of the back, weapon extending
+    // up and to the left. Pushed clear of the torso so nothing intersects it.
+    this.backSocket.position.set(0.14, TORSO_Y - 0.12, 0.34);
+    this.backSocket.rotation.set(-0.3, 0, -2.5);
+    this.backSocket.scale.setScalar(0.8);
     this.body.add(this.backSocket);
 
     this.walkPhase = 0;
     this.flash = 0;
+    /** Grip tilt of the held weapon, damped between poses. */
+    this.gripTilt = GRIP_CARRY;
     this._baseEmissive = new THREE.Color(0x000000);
+  }
+
+  /** Hide the head so it does not fill the screen in first person. */
+  setHeadVisible(visible) {
+    this.head.visible = visible;
+    this.brow.visible = visible;
   }
 
   /** Flash the whole body white for a moment (hit feedback at blockout). */
@@ -176,40 +208,72 @@ export class HumanoidRig {
     }
 
     // ---- Layer 2: attacks override the arms ------------------------------
+    let targetArmRY = 0;
+    let targetGrip = GRIP_CARRY;
+
     if (state === 'attack-melee') {
+      // A HORIZONTAL slash, because the damage shape is a horizontal cone:
+      // the arm lifts to shoulder height, then sweeps right -> left across the
+      // front through the same +-50 degrees the hit test uses.
       const p = clamp(attackProgress, 0, 1);
+      targetGrip = GRIP_SLASH;
       if (p < 0.35) {
-        const u = easeIn(p / 0.35);            // windup: wind the arm back
-        targetArmRX = lerp(targetArmRX, -2.0, u);
-        targetArmRZ = lerp(targetArmRZ, -0.95, u);
-        twist = lerp(0, 0.55, u);
+        const u = easeIn(p / 0.35);            // windup: coil back over the right
+        targetArmRX = lerp(targetArmRX, 1.2, u);
+        targetArmRY = lerp(0, -1.0, u);
+        targetArmRZ = lerp(targetArmRZ, -0.15, u);
+        twist = lerp(0, -0.42, u);
       } else if (p < 0.6) {
-        const u = easeOut((p - 0.35) / 0.25);  // active: the actual slash
-        targetArmRX = lerp(-2.0, -0.3, u);
-        targetArmRZ = lerp(-0.95, 1.3, u);
-        twist = lerp(0.55, -0.7, u);
+        const u = easeOut((p - 0.35) / 0.25);  // active: the slash itself
+        targetArmRX = lerp(1.2, 1.5, u);   // arm level at shoulder height
+        targetArmRY = lerp(-1.0, 1.0, u);  // the 100-degree sweep itself
+        targetArmRZ = -0.15;
+        twist = lerp(-0.42, 0.5, u);
       } else {
         const u = easeOut((p - 0.6) / 0.4);    // recovery: settle back
-        targetArmRX = lerp(-0.3, targetArmRX, u);
-        targetArmRZ = lerp(1.3, targetArmRZ, u);
-        twist = lerp(-0.7, 0, u);
+        targetArmRX = lerp(1.5, targetArmRX, u);
+        targetArmRY = lerp(1.0, 0, u);
+        targetArmRZ = lerp(-0.15, targetArmRZ, u);
+        twist = lerp(0.5, 0, u);
+        targetGrip = lerp(GRIP_SLASH, GRIP_CARRY, u);
       }
-      targetArmLX = lerp(targetArmLX, -0.35, 0.6);
+      targetArmLX = lerp(targetArmLX, 0.45, 0.6);
+    } else if (state === 'attack-claw') {
+      // Unarmed double-arm swipe: both arms rear back overhead, then chop down.
+      const p = clamp(attackProgress, 0, 1);
+      if (p < 0.55) {
+        const u = easeIn(p / 0.55);            // slow, telegraphed windup
+        targetArmLX = lerp(targetArmLX, 2.5, u);
+        targetArmRX = lerp(targetArmRX, 2.5, u);
+        targetArmLZ = lerp(targetArmLZ, 0.35, u);
+        targetArmRZ = lerp(targetArmRZ, -0.35, u);
+        lean = lerp(lean, -0.25, u);
+      } else {
+        const u = easeOut((p - 0.55) / 0.45);  // fast chop down
+        targetArmLX = lerp(2.5, 0.9, u);
+        targetArmRX = lerp(2.5, 0.9, u);
+        targetArmLZ = lerp(0.35, 0.15, u);
+        targetArmRZ = lerp(-0.35, -0.15, u);
+        lean = lerp(-0.25, 0.3, u);
+      }
     } else if (state === 'attack-ranged') {
       const p = clamp(attackProgress, 0, 1);
-      // Bow arm stays extended; the draw hand snaps back on release.
-      targetArmRX = -1.45;
+      // Bow arm extended FORWARD (positive rotation.x); the draw hand snaps
+      // back on release and pulls the next arrow.
+      targetGrip = GRIP_BOW;
+      targetArmRX = 1.45;
       targetArmRZ = -0.05;
+      targetArmRY = -0.12;
       if (p < 0.3) {
         const u = p / 0.3;                     // release kick
-        targetArmLX = lerp(-1.1, -0.6, u);
-        targetArmLZ = lerp(0.55, 0.3, u);
+        targetArmLX = lerp(1.1, 0.6, u);
+        targetArmLZ = lerp(-0.55, -0.3, u);
       } else {
         const u = easeOut((p - 0.3) / 0.7);    // re-draw for the next shot
-        targetArmLX = lerp(-0.6, -1.1, u);
-        targetArmLZ = lerp(0.3, 0.55, u);
+        targetArmLX = lerp(0.6, 1.1, u);
+        targetArmLZ = lerp(-0.3, -0.55, u);
       }
-      twist = -0.25;
+      twist = 0.22;
     }
 
     const smoothing = state.startsWith('attack') ? 0.0005 : 0.002;
@@ -219,11 +283,22 @@ export class HumanoidRig {
     this.shoulderR.rotation.x = damp(this.shoulderR.rotation.x, targetArmRX, smoothing, dt);
     this.shoulderL.rotation.z = damp(this.shoulderL.rotation.z, targetArmLZ, smoothing, dt);
     this.shoulderR.rotation.z = damp(this.shoulderR.rotation.z, targetArmRZ, smoothing, dt);
+    this.shoulderR.rotation.y = damp(this.shoulderR.rotation.y, targetArmRY, smoothing, dt);
 
-    // ---- Layer 3: hit reaction (additive recoil) -------------------------
+    this.gripTilt = damp(this.gripTilt, targetGrip, smoothing, dt);
+    this.handSocket.rotation.x = this.gripTilt;
+
+    // ---- Layer 3: hit reaction (additive stagger) ------------------------
+    // Sin curve: snaps into the recoil and eases back out, so a hit reads even
+    // when the character is mid-attack.
     let recoil = 0;
     if (hitProgress < 1) {
-      recoil = Math.sin(clamp(hitProgress, 0, 1) * Math.PI) * 0.4;
+      const shock = Math.sin(clamp(hitProgress, 0, 1) * Math.PI);
+      recoil = shock * 0.45;
+      this.shoulderL.rotation.z -= shock * 0.5;
+      this.shoulderR.rotation.z += shock * 0.5;
+      this.shoulderL.rotation.x -= shock * 0.3;
+      this.shoulderR.rotation.x -= shock * 0.3;
     }
 
     this.body.position.y = bob;
@@ -257,6 +332,8 @@ export class HumanoidRig {
     for (const joint of [this.shoulderL, this.shoulderR, this.hipL, this.hipR]) {
       joint.rotation.set(0, 0, 0);
     }
+    this.gripTilt = GRIP_CARRY;
+    this.handSocket.rotation.x = GRIP_CARRY;
     this.flash = 0;
     for (const material of Object.values(this.materials)) {
       material.emissive.setRGB(0, 0, 0);

@@ -33,6 +33,8 @@ export class GameState {
     this.arena = { minX: -19, maxX: 19, minZ: -19, maxZ: 19 };
 
     this.paused = false;
+    /** Set false for a quiet sandbox: no new zombie waves spawn. */
+    this.wavesEnabled = true;
   }
 
   /** Queue a floating damage number at a world position. */

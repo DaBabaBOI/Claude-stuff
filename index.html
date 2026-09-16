@@ -38,6 +38,25 @@
   .chip.held { border-color: #9fd0ff; background: rgba(159,208,255,0.16); color: #ffffff; }
 
   #floaters { position: absolute; inset: 0; }
+
+  /* Crosshair: only in first person, where there is no cursor to aim with. */
+  #crosshair { position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px; display: none; }
+  body.first-person #crosshair { display: block; }
+  body.first-person #target { top: 56px; }
+  #crosshair::before, #crosshair::after {
+    content: ""; position: absolute; background: rgba(255,255,255,0.85);
+    box-shadow: 0 0 3px rgba(0,0,0,0.9);
+  }
+  #crosshair::before { left: 50%; top: 0; width: 2px; height: 100%; margin-left: -1px; }
+  #crosshair::after { top: 50%; left: 0; height: 2px; width: 100%; margin-top: -1px; }
+
+  #dead {
+    position: absolute; inset: 0; display: none; place-items: center;
+    background: rgba(60, 8, 8, 0.45); backdrop-filter: blur(2px);
+  }
+  #dead.show { display: grid; }
+  #dead div { text-align: center; font-size: 28px; font-weight: 700; letter-spacing: 0.02em; }
+  #dead small { display: block; margin-top: 8px; font-size: 13px; font-weight: 400; opacity: 0.85; }
   .floater {
     position: absolute; top: 0; left: 0; font-weight: 700; font-size: 20px;
     text-shadow: 0 2px 4px rgba(0,0,0,0.8); will-change: transform, opacity;
@@ -57,6 +76,7 @@
     <div class="panel" id="target">
       <div class="row"><span id="dummy-text">Test Dummy</span></div>
       <div class="bar"><i id="dummy-fill"></i></div>
+      <div class="row" style="justify-content:center"><span id="wave-text">Zombies: 0</span></div>
     </div>
 
     <div class="panel" id="stats">
@@ -74,10 +94,13 @@
       <div><b>WASD</b> move &nbsp; <b>Shift</b> sprint</div>
       <div><b>Mouse</b> aim &nbsp; <b>LMB</b> swing &nbsp; <b>RMB</b> shoot</div>
       <div><b>R</b> reload &nbsp; <b>1/2</b> hold weapon</div>
+      <div><b>V</b> first-person / top-down</div>
       <div><b>H</b> hurt self (test) &nbsp; <b>Q</b> reset</div>
     </div>
 
+    <div id="crosshair"></div>
     <div id="floaters"></div>
+    <div id="dead"><div>You died<small>Press <kbd>Q</kbd> to respawn</small></div></div>
   </div>
 
   <script type="importmap">

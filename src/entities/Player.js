@@ -111,13 +111,19 @@ export class Player {
     return this.equippedMelee.use(state.time);
   }
 
-  fireRanged(state) {
+  /**
+   * @param {import('../GameState.js').GameState} state
+   * @param {number|null} aimPitch first-person look pitch, in radians. When
+   *   null the weapon picks the pitch that carries the shot to its own range.
+   */
+  fireRanged(state, aimPitch = null) {
     if (this.dead || !this.equippedRanged) return false;
     this.setHeld('ranged');
     const dir = directionFromYaw(this.facing);
+    if (aimPitch !== null) dir.pitch = aimPitch;
     const origin = {
       x: this.position.x + dir.x * 0.55,
-      y: 1.25,
+      y: aimPitch !== null ? 1.5 : 1.25,
       z: this.position.z + dir.z * 0.55,
     };
     const shot = this.equippedRanged.use(state.time, origin, dir);

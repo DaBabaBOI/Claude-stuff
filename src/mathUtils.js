@@ -28,8 +28,12 @@ export function dampAngle(from, to, smoothing, dt) {
   return from + angleDelta(from, to) * (1 - Math.pow(smoothing, dt));
 }
 
-/** Squared distance from point p to segment ab, in the XZ plane. */
-export function distSqPointSegmentXZ(px, pz, ax, az, bx, bz) {
+/**
+ * Closest approach of point p to segment ab in the XZ plane.
+ * Returns the squared distance and `t`, the position along the segment (0..1),
+ * so callers can ask "how high was the arrow when it passed closest?".
+ */
+export function closestPointOnSegmentXZ(px, pz, ax, az, bx, bz) {
   const abx = bx - ax;
   const abz = bz - az;
   const lenSq = abx * abx + abz * abz;
@@ -37,7 +41,7 @@ export function distSqPointSegmentXZ(px, pz, ax, az, bx, bz) {
   t = clamp(t, 0, 1);
   const cx = ax + abx * t;
   const cz = az + abz * t;
-  return (px - cx) * (px - cx) + (pz - cz) * (pz - cz);
+  return { t, distSq: (px - cx) * (px - cx) + (pz - cz) * (pz - cz) };
 }
 
 /** Unit forward vector for a yaw angle (inverse of yawFromDirection). */

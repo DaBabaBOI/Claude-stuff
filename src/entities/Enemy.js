@@ -15,8 +15,10 @@ export class Enemy {
     this.maxHealth = maxHealth;
     this.health = maxHealth;
     this.radius = 0.45;
+    this.height = 2.0; // used by the projectile height check
     this.respawnDelay = respawnDelay;
 
+    this.isZombie = false;
     this.dead = false;
     this.deathTimer = 0;
     this.hitTimer = HIT_REACTION_TIME;

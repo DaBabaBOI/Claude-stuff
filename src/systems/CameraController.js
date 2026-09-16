@@ -1,18 +1,29 @@
 import * as THREE from 'three';
 import { damp } from '../mathUtils.js';
 
+export const VIEW_TOP_DOWN = 'top-down';
+export const VIEW_FIRST_PERSON = 'first-person';
+
+/** Eye height of the hero, in metres — just below the top of the head. */
+const EYE_HEIGHT = 1.64;
+
 /**
- * CameraController — a locked top-down/isometric chase camera.
+ * CameraController — two views, one hero.
  *
- * Decision (locked in for the project): fixed angle, no rotation, no zoom
- * during play. The camera sits at a constant offset from the hero and eases
- * toward it, with a small lean toward where you are aiming so the cursor side
- * of the screen shows a bit more.
+ * TOP-DOWN (default): fixed angle, no rotation, no zoom during play. The
+ * camera sits at a constant offset from the hero and eases toward it, with a
+ * small lean toward the cursor so that side of the screen shows a bit more.
  *
  *        camera
  *           \   offset (0, 11.5, 9)  ~52 degrees down
  *            \
  *             ●  hero
+ *
+ * FIRST PERSON: the camera sits at the hero's eyes and takes its yaw and pitch
+ * straight from mouse-look. No easing at all — a follow lag you can see from
+ * inside your own head reads as motion sickness, not weight.
+ *
+ *        ●═══►  eye at y = 1.64, yaw = facing, pitch = look
  */
 export class CameraController {
   constructor(camera, { offset = new THREE.Vector3(0, 11.5, 9) } = {}) {
@@ -20,6 +31,22 @@ export class CameraController {
     this.offset = offset.clone();
     this.lookTarget = new THREE.Vector3();
     this.desired = new THREE.Vector3();
+    this.mode = VIEW_TOP_DOWN;
+  }
+
+  get isFirstPerson() {
+    return this.mode === VIEW_FIRST_PERSON;
+  }
+
+  setMode(mode) {
+    this.mode = mode;
+    if (mode === VIEW_TOP_DOWN) {
+      this.camera.rotation.set(0, 0, 0);
+      this.camera.rotation.order = 'XYZ';
+    } else {
+      // YXZ: yaw first, then pitch — the order that keeps the horizon level.
+      this.camera.rotation.order = 'YXZ';
+    }
   }
 
   snapTo(position) {
@@ -28,7 +55,15 @@ export class CameraController {
     this.camera.lookAt(this.lookTarget);
   }
 
-  update(dt, position, aimPoint) {
+  update(dt, position, aimPoint, look = null) {
+    if (this.isFirstPerson) {
+      this.camera.position.set(position.x, position.y + EYE_HEIGHT, position.z);
+      this.camera.rotation.y = look?.yaw ?? 0;
+      this.camera.rotation.x = look?.pitch ?? 0;
+      this.camera.rotation.z = 0;
+      return;
+    }
+
     // Lean up to 1.5 m toward the aim point without unanchoring the hero.
     const leanX = aimPoint ? THREE.MathUtils.clamp((aimPoint.x - position.x) * 0.15, -1.5, 1.5) : 0;
     const leanZ = aimPoint ? THREE.MathUtils.clamp((aimPoint.z - position.z) * 0.15, -1.5, 1.5) : 0;

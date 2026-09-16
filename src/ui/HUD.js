@@ -22,6 +22,8 @@ export class HUD {
       rangedChip: root.getElementById('chip-ranged'),
       dummyFill: root.getElementById('dummy-fill'),
       dummyText: root.getElementById('dummy-text'),
+      waveText: root.getElementById('wave-text'),
+      dead: root.getElementById('dead'),
       floaters: root.getElementById('floaters'),
     };
     this.floaters = [];
@@ -50,6 +52,11 @@ export class HUD {
     this.el.rangedChip.classList.toggle('held', player.heldSlot === 'ranged');
     this.el.meleeChip.textContent = player.equippedMelee ? `1 ${player.equippedMelee.name}` : '1 —';
     this.el.rangedChip.textContent = player.equippedRanged ? `2 ${player.equippedRanged.name}` : '2 —';
+
+    this.el.dead.classList.toggle('show', player.dead);
+
+    const zombies = state.enemies.filter((e) => e.isZombie && !e.dead).length;
+    this.el.waveText.textContent = zombies === 0 ? 'Next wave incoming' : `Zombies: ${zombies}`;
 
     const dummy = state.enemies[0];
     if (dummy) {
