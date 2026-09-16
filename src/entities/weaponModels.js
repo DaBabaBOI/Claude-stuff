@@ -21,6 +21,7 @@ import * as THREE from 'three';
 const STEEL = new THREE.MeshStandardMaterial({ color: 0xc9d2dc, roughness: 0.35, metalness: 0.6 });
 const WOOD = new THREE.MeshStandardMaterial({ color: 0x7a5230, roughness: 0.9 });
 const STRING = new THREE.MeshStandardMaterial({ color: 0xe6e2d3, roughness: 0.7 });
+const LEATHER = new THREE.MeshStandardMaterial({ color: 0x4a3524, roughness: 0.95 });
 
 /** Arrows: brown shaft, white head and fletching. Shared by the nocked arrow
  *  on the bow and by every arrow in flight, so they always match. */
@@ -202,6 +203,88 @@ function createBow() {
   };
 
   group.setNock(null, 0);
+  return group;
+}
+
+/**
+ * A quiver of arrows for the back, built from fletched tails only — from
+ * behind a character that is all you would see anyway, and 12 full arrows is a
+ * lot of geometry for something over your shoulder.
+ *
+ * `setCount(n)` shows the first n, so the quiver visibly empties as you shoot.
+ */
+export function createQuiver(capacity = 12) {
+  const group = new THREE.Group();
+
+  const holder = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.11, 0.09, 0.42, 8, 1, true),
+    LEATHER
+  );
+  holder.position.y = -0.1;
+  holder.castShadow = true;
+  group.add(holder);
+
+  const shaft = new THREE.CylinderGeometry(0.014, 0.014, 0.44, 4);
+  const vane = new THREE.BoxGeometry(0.004, 0.09, 0.055);
+  vane.translate(0, 0.16, 0);
+
+  const arrows = [];
+  for (let i = 0; i < capacity; i++) {
+    // Pack them in a loose spiral so the bundle reads as many arrows, not a
+    // tidy grid.
+    const angle = (i / capacity) * Math.PI * 2 * 1.6;
+    const radius = 0.028 + (i % 3) * 0.022;
+    const arrow = new THREE.Group();
+    arrow.position.set(Math.cos(angle) * radius, 0.12, Math.sin(angle) * radius);
+    arrow.rotation.z = Math.cos(angle) * 0.07;
+    arrow.rotation.x = Math.sin(angle) * 0.07;
+
+    const stick = new THREE.Mesh(shaft, ARROW_SHAFT);
+    arrow.add(stick);
+    for (let v = 0; v < 2; v++) {
+      const fletch = new THREE.Mesh(vane, ARROW_WHITE);
+      fletch.rotation.y = v * (Math.PI / 2);
+      arrow.add(fletch);
+    }
+    group.add(arrow);
+    arrows.push(arrow);
+  }
+
+  /** Show the first `count` arrows; the rest are spent. */
+  group.setCount = (count) => {
+    for (let i = 0; i < arrows.length; i++) arrows[i].visible = i < count;
+  };
+  group.setCount(capacity);
+
+  return group;
+}
+
+/**
+ * A bundle of arrows lying on the ground, waiting to be picked up. Tied at the
+ * middle and fanned, so it reads as loot rather than as spent ammunition.
+ */
+export function createArrowBundle(count = 5) {
+  const group = new THREE.Group();
+
+  const shaft = new THREE.CylinderGeometry(0.016, 0.016, 0.7, 5);
+  const head = new THREE.ConeGeometry(0.035, 0.12, 5);
+  head.translate(0, 0.41, 0);
+
+  for (let i = 0; i < count; i++) {
+    const arrow = new THREE.Group();
+    arrow.rotation.z = Math.PI / 2;
+    arrow.rotation.y = (i / count) * 0.9 - 0.45;
+    arrow.position.y = 0.06 + (i % 2) * 0.03;
+    arrow.add(new THREE.Mesh(shaft, ARROW_SHAFT));
+    arrow.add(new THREE.Mesh(head, ARROW_WHITE));
+    group.add(arrow);
+  }
+
+  const tie = new THREE.Mesh(new THREE.TorusGeometry(0.08, 0.016, 5, 10), LEATHER);
+  tie.rotation.y = Math.PI / 2;
+  tie.position.y = 0.09;
+  group.add(tie);
+
   return group;
 }
 

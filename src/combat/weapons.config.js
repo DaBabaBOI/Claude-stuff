@@ -31,8 +31,8 @@ export const RANGED_CONFIGS = {
     speed: 1.0,          // shots per second
     range: 20,           // metres before the arrow expires
     projectileSpeed: 30, // m/s
-    ammoCapacity: 12,
-    reloadTime: 1.4,
+    ammoCapacity: 12,  // the quiver on your back — no reload, only pickups
+    reloadable: false,
     releaseDelay: 0.1,
     chargeTime: 0.85,  // hold to draw; a tap shoots a weak, loopy arrow
     model: 'bow',

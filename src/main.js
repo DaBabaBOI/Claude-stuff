@@ -4,6 +4,7 @@ import { Player } from './entities/Player.js';
 import { Enemy } from './entities/Enemy.js';
 import { Zombie } from './entities/Zombie.js';
 import { Skeleton } from './entities/Skeleton.js';
+import { ArrowBundle } from './entities/ArrowBundle.js';
 import { ProjectileSystem } from './combat/ProjectileSystem.js';
 import { createMelee, createRanged } from './combat/weapons.config.js';
 import { InputManager } from './systems/InputManager.js';
@@ -108,6 +109,50 @@ function spawnWave() {
   }
 }
 
+// --- Arrow bundles ---------------------------------------------------------
+// There is no reload: the quiver is what you have, and these are the only way
+// to refill it. A few are kept on the field at all times so running dry is a
+// reason to move rather than a dead end.
+const MAX_BUNDLES = 3;
+const BUNDLE_INTERVAL = 7;
+const BUNDLE_AMOUNT = 5;
+let nextBundleAt = 3;
+
+function spawnArrowBundle() {
+  // Somewhere in the arena, but not on top of the player — collecting should
+  // cost you a walk.
+  for (let attempt = 0; attempt < 12; attempt++) {
+    const x = THREE.MathUtils.randFloat(state.arena.minX + 2, state.arena.maxX - 2);
+    const z = THREE.MathUtils.randFloat(state.arena.minZ + 2, state.arena.maxZ - 2);
+    if (Math.hypot(x - player.position.x, z - player.position.z) < 5) continue;
+    state.pickups.push(
+      new ArrowBundle({ scene, position: new THREE.Vector3(x, 0, z), amount: BUNDLE_AMOUNT })
+    );
+    return true;
+  }
+  return false;
+}
+
+function updatePickups(dt) {
+  if (state.pickups.length < MAX_BUNDLES && state.time >= nextBundleAt) {
+    if (spawnArrowBundle()) nextBundleAt = state.time + BUNDLE_INTERVAL;
+  }
+
+  for (let i = state.pickups.length - 1; i >= 0; i--) {
+    const bundle = state.pickups[i];
+    bundle.update(dt);
+    if (player.dead || !bundle.overlaps(player)) continue;
+
+    const taken = player.addArrows(bundle.amount);
+    if (taken === 0) continue; // quiver full: leave it on the ground
+
+    state.pushEvent('pickup', { amount: taken });
+    state.pushDamageEvent({ x: bundle.position.x, y: 1.2, z: bundle.position.z }, taken, 'pickup');
+    bundle.dispose();
+    state.pickups.splice(i, 1);
+  }
+}
+
 function updateWaves(dt) {
   const isSpawned = (e) => e.isZombie || e.isSkeleton;
   const alive = state.enemies.filter((e) => isSpawned(e) && !e.dead).length;
@@ -189,7 +234,10 @@ function resetScene() {
     }
   }
   projectiles.clear(state);
+  for (const bundle of state.pickups) bundle.dispose();
+  state.pickups.length = 0;
   nextWaveAt = state.time + 2;
+  nextBundleAt = state.time + 1;
   if (!cameraController.isFirstPerson) cameraController.snapTo(player.position);
 }
 
@@ -209,6 +257,7 @@ function tick() {
     for (const enemy of state.enemies) enemy.update(dt, state);
     projectiles.update(dt, state);
     updateWaves(dt);
+    updatePickups(dt);
     audio.update(state);
 
     // In first person the hero turns with the mouse, so the movement basis has
@@ -239,7 +288,7 @@ tick();
 // Harmless in normal play, and handy in the console while tuning feel.
 window.__game = {
   state, player, input, projectiles, scene, camera, cameraController, hud,
-  resetScene, setView, spawnWave, audio,
+  resetScene, setView, spawnWave, spawnArrowBundle, audio,
   clearZombies() {
     for (let i = state.enemies.length - 1; i >= 0; i--) {
       if (state.enemies[i].isZombie || state.enemies[i].isSkeleton) {

@@ -20,7 +20,7 @@
   }
   #stats { left: 16px; bottom: 16px; width: 260px; }
   #target { left: 50%; top: 16px; transform: translateX(-50%); width: 280px; text-align: center; }
-  #help { right: 16px; bottom: 16px; width: 230px; opacity: 0.85; }
+  #help { right: 16px; bottom: 16px; width: 268px; opacity: 0.85; line-height: 1.55; }
   #help b { color: #9fd0ff; font-weight: 600; }
 
   .bar { height: 12px; border-radius: 6px; background: rgba(255,255,255,0.1); overflow: hidden; margin: 4px 0 8px; }
@@ -90,6 +90,8 @@
   .floater-melee { color: #ffe08a; }
   .floater-ranged { color: #a8e6ff; }
   .floater-player { color: #ff8686; }
+  .floater-pickup { color: #9ff0b8; }
+  #ammo-row.empty { color: #ff9a8c; opacity: 1; }
 
   /* The game is built around a keyboard and a mouse; say so rather than
      letting someone poke at an unplayable canvas. */
@@ -120,7 +122,7 @@
     <div class="panel" id="stats">
       <div class="row"><span>Health</span><span id="health-text">100 / 100</span></div>
       <div class="bar"><i id="health-fill"></i></div>
-      <div class="row"><span>Stamina</span><span id="ammo-row">Ammo <b id="ammo-text">12 / 12</b></span></div>
+      <div class="row"><span>Stamina</span><span id="ammo-row">Arrows <b id="ammo-text">12 / 12</b></span></div>
       <div class="bar"><i id="stamina-fill"></i></div>
       <div id="draw-row">
         <div class="row"><span>Draw</span><span id="draw-text">0%</span></div>
@@ -136,9 +138,10 @@
       <div><b>WASD</b> move &nbsp; <b>Shift</b> sprint</div>
       <div><b>Mouse</b> aim &nbsp; <b>LMB</b> swing</div>
       <div><b>Hold RMB</b> draw the bow, release to shoot</div>
-      <div><b>R</b> reload &nbsp; <b>1/2</b> hold weapon</div>
+      <div>Walk over arrow bundles to refill</div>
+      <div><b>1/2</b> hold weapon</div>
       <div><b>V</b> first-person / top-down</div>
-      <div><b>M</b> mute &nbsp; <b>H</b> hurt self (test) &nbsp; <b>Q</b> reset</div>
+      <div><b>M</b> mute &nbsp; <b>H</b> hurt self &nbsp; <b>Q</b> reset</div>
     </div>
 
     <div id="healthbars"></div>

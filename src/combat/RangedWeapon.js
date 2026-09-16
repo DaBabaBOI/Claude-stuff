@@ -24,6 +24,11 @@ export class RangedWeapon extends Weapon {
 
     this.ammoCapacity = config.ammoCapacity ?? 10;
     this.reloadTime = config.reloadTime ?? 1.5;
+    /**
+     * Whether this weapon can refill itself. A bow cannot: its arrows live in
+     * the quiver on your back, and the only way to get more is to pick them up.
+     */
+    this.reloadable = config.reloadable ?? true;
     this.projectileSpeed = config.projectileSpeed ?? 24;
     /** Seconds between pulling the trigger and the projectile leaving. */
     this.releaseDelay = config.releaseDelay ?? 0.12;
@@ -139,6 +144,13 @@ export class RangedWeapon extends Weapon {
     return super.canUse(now) && !this.reloading && this.ammo > 0;
   }
 
+  /** Put arrows back in the quiver. Returns how many actually fitted. */
+  addAmmo(count) {
+    const before = this.ammo;
+    this.ammo = Math.min(this.ammoCapacity, this.ammo + count);
+    return this.ammo - before;
+  }
+
   /**
    * Fire one shot. Returns the spawned projectile spec, or null if the shot
    * could not be taken (cooldown, empty magazine, mid-reload).
@@ -183,7 +195,7 @@ export class RangedWeapon extends Weapon {
   }
 
   beginReload(now) {
-    if (this.reloading || this.ammo === this.ammoCapacity) return false;
+    if (!this.reloadable || this.reloading || this.ammo === this.ammoCapacity) return false;
     this.reloading = true;
     this.reloadEndsAt = now + this.reloadTime;
     return true;

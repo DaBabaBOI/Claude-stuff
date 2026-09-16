@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { HumanoidRig } from './HumanoidRig.js';
-import { createWeaponModel } from './weaponModels.js';
+import { createQuiver, createWeaponModel } from './weaponModels.js';
 import { clamp, damp, dampAngle, directionFromYaw, yawFromDirection } from '../mathUtils.js';
 
 const BASE_MOVE_SPEED = 5.4;   // metres/sec
@@ -64,6 +64,7 @@ export class Player {
     scene.add(this.rig.root);
 
     this.weaponModels = { melee: null, ranged: null };
+    this.quiver = null;
   }
 
   // --- Stats that armour will modify later -------------------------------
@@ -95,7 +96,18 @@ export class Player {
   equipRanged(weapon) {
     this.equippedRanged = weapon;
     this.weaponModels.ranged = createWeaponModel(weapon.model);
+
+    // Arrows live on your back, visibly: the quiver is the ammo counter.
+    if (this.quiver) this.rig.quiverSocket.remove(this.quiver);
+    this.quiver = createQuiver(weapon.ammoCapacity);
+    this.rig.quiverSocket.add(this.quiver);
+
     this.attachWeapons();
+  }
+
+  /** Collect arrows from a bundle. Returns how many fitted in the quiver. */
+  addArrows(count) {
+    return this.equippedRanged?.addAmmo(count) ?? 0;
   }
 
   /** Parent the held weapon to the hand socket and the other to the back. */
@@ -323,6 +335,9 @@ export class Player {
     } else if (speed01 > 0.03) {
       rigState = 'walk';
     }
+
+    // The quiver empties as you shoot — one fewer arrow on your back per shot.
+    this.quiver?.setCount(this.equippedRanged?.ammo ?? 0);
 
     this.rig.root.position.set(this.position.x, this.position.y, this.position.z);
     this.rig.root.rotation.y = this.facing;

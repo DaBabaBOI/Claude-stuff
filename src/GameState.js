@@ -21,6 +21,8 @@ export class GameState {
     this.enemies = [];
     /** @type {object[]} live projectiles (see ProjectileSystem) */
     this.projectiles = [];
+    /** @type {import('./entities/ArrowBundle.js').ArrowBundle[]} */
+    this.pickups = [];
 
     /**
      * Damage events produced this frame. The HUD drains this every frame to

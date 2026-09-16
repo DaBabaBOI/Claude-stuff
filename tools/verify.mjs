@@ -155,17 +155,103 @@ try {
   check('player takes damage and plays a hit reaction',
     health.health === 85 && health.reacting, `health ${health.health}`);
 
-  // --- 5. reload ------------------------------------------------------------
-  const reload = await page.evaluate(() => {
+  // --- 5. quiver, not a magazine --------------------------------------------
+  const quiver = await page.evaluate(() => {
     const g = window.__game;
-    g.player.equippedRanged.ammo = 0;
-    const started = g.player.reload(g.state);
-    return { started, reloading: g.player.equippedRanged.reloading };
+    const bow = g.player.equippedRanged;
+    bow.ammo = 0;
+    const reloadStarted = g.player.reload(g.state);
+    return {
+      reloadable: bow.reloadable,
+      reloadStarted,
+      reloading: bow.reloading,
+      capacity: bow.ammoCapacity,
+    };
   });
-  check('reload starts when the magazine is empty', reload.started && reload.reloading);
-  check('reload refills the magazine',
-    await waitFor(() => window.__game.player.equippedRanged.ammo ===
-      window.__game.player.equippedRanged.ammoCapacity));
+  check('the bow has no reload', quiver.reloadable === false && quiver.reloadStarted === false
+    && quiver.reloading === false, `quiver holds ${quiver.capacity}`);
+
+  const visible = await page.evaluate(async () => {
+    const g = window.__game;
+    const bow = g.player.equippedRanged;
+    const countVisible = () =>
+      g.player.quiver.children.filter((c) => c.type === 'Group' && c.visible).length;
+    bow.ammo = 12;
+    await new Promise((r) => requestAnimationFrame(r));
+    const full = countVisible();
+    bow.ammo = 4;
+    await new Promise((r) => requestAnimationFrame(r));
+    const low = countVisible();
+    return { full, low, capacity: bow.ammoCapacity };
+  });
+  check('arrows on the back match the arrows you have',
+    visible.full === 12 && visible.low === 4,
+    `${visible.full} shown at full, ${visible.low} shown at 4`);
+
+  const spent = await page.evaluate(async () => {
+    const g = window.__game;
+    const bow = g.player.equippedRanged;
+    bow.ammo = 1;
+    bow.nextReadyAt = 0;
+    g.player.position.set(0, 0, 12);
+    g.player.facing = 0;
+    bow.drawing = true;
+    bow.charge = 1;
+    const fired = g.player.fireRanged(g.state);
+    await new Promise((r) => requestAnimationFrame(r));
+    bow.nextReadyAt = 0;
+    const secondShot = g.player.fireRanged(g.state);
+    return { fired, ammo: bow.ammo, secondShot };
+  });
+  check('an empty quiver cannot shoot', spent.fired && spent.ammo === 0 && !spent.secondShot);
+
+  const bundle = await page.evaluate(async () => {
+    const g = window.__game;
+    g.player.equippedRanged.ammo = 2;
+    for (const b of g.state.pickups) b.dispose();
+    g.state.pickups.length = 0;
+    g.spawnArrowBundle();
+    const b = g.state.pickups[0];
+    const amount = b.amount;
+    // Walk the hero onto it.
+    g.player.position.set(b.position.x, 0, b.position.z);
+    for (let i = 0; i < 20 && g.state.pickups.length > 0; i++) {
+      await new Promise((r) => requestAnimationFrame(r));
+    }
+    return { amount, ammo: g.player.equippedRanged.ammo, remaining: g.state.pickups.length };
+  });
+  check('walking over a bundle refills the quiver',
+    bundle.ammo === 2 + bundle.amount && bundle.remaining === 0,
+    `2 -> ${bundle.ammo} arrows`);
+
+  const overfill = await page.evaluate(async () => {
+    const g = window.__game;
+    const bow = g.player.equippedRanged;
+    bow.ammo = bow.ammoCapacity;
+    for (const b of g.state.pickups) b.dispose();
+    g.state.pickups.length = 0;
+    g.spawnArrowBundle();
+    const b = g.state.pickups[0];
+    g.player.position.set(b.position.x, 0, b.position.z);
+    for (let i = 0; i < 12; i++) await new Promise((r) => requestAnimationFrame(r));
+    // The spawner keeps topping the field up, so check THIS bundle survived
+    // rather than counting them.
+    return {
+      ammo: bow.ammo,
+      capacity: bow.ammoCapacity,
+      stillThere: g.state.pickups.includes(b),
+    };
+  });
+  check('a full quiver leaves the bundle on the ground',
+    overfill.ammo === overfill.capacity && overfill.stillThere,
+    `${overfill.ammo}/${overfill.capacity}, bundle ${overfill.stillThere ? 'still there' : 'eaten'}`);
+
+  await page.evaluate(() => {
+    const g = window.__game;
+    for (const b of g.state.pickups) b.dispose();
+    g.state.pickups.length = 0;
+    g.player.equippedRanged.ammo = g.player.equippedRanged.ammoCapacity;
+  });
 
   // --- 6. ballistic arrows ---------------------------------------------------
   const flight = await page.evaluate(async () => {

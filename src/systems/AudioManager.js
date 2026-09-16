@@ -176,6 +176,11 @@ export class AudioManager {
         this.tone({ type: 'sine', from: 420, to: 55, duration: 1.1, gain: 0.45 });
         break;
 
+      case 'pickup':
+        this.tone({ type: 'triangle', from: 660, to: 990, duration: 0.1, gain: 0.22 });
+        this.tone({ type: 'triangle', from: 990, to: 1320, duration: 0.12, gain: 0.16, delay: 0.07 });
+        break;
+
       case 'wave':
         this.tone({ type: 'square', from: 180, to: 178, duration: 0.18, gain: 0.2 });
         this.tone({ type: 'square', from: 135, to: 133, duration: 0.34, gain: 0.22, delay: 0.19 });

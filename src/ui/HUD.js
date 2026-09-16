@@ -51,9 +51,9 @@ export class HUD {
     const ranged = player.equippedRanged;
     if (ranged) {
       this.el.ammoRow.hidden = false;
-      this.el.ammoText.textContent = ranged.reloading
-        ? `reloading ${Math.round(ranged.reloadProgress(state.time) * 100)}%`
-        : `${ranged.ammo} / ${ranged.ammoCapacity}`;
+      this.el.ammoText.textContent =
+        ranged.ammo === 0 ? 'none — find a bundle' : `${ranged.ammo} / ${ranged.ammoCapacity}`;
+      this.el.ammoRow.classList.toggle('empty', ranged.ammo === 0);
     } else {
       this.el.ammoRow.hidden = true;
     }

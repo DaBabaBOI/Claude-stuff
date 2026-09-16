@@ -147,6 +147,13 @@ export class HumanoidRig {
     this.backSocket.position.set(0.14, TORSO_Y - 0.12, 0.34);
     this.backSocket.rotation.set(-0.3, 0, -2.5);
     this.backSocket.scale.setScalar(0.8);
+
+    // Quiver rides the other shoulder so it never fights the stowed weapon.
+    this.quiverSocket = new THREE.Object3D();
+    this.quiverSocket.position.set(-0.16, TORSO_Y + 0.22, 0.2);
+    this.quiverSocket.rotation.set(-0.34, 0, 0.42);
+    this.quiverSocket.scale.setScalar(0.82);
+    this.body.add(this.quiverSocket);
     this.body.add(this.backSocket);
 
     this.walkPhase = 0;

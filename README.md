@@ -34,7 +34,6 @@ npm run verify       # headless acceptance test, writes screenshot.png
 | Mouse | Aim — the hero turns to face the cursor |
 | Left click | Swing the melee weapon |
 | Hold right click | Draw the bow — release to loose |
-| `R` | Reload |
 | `1` / `2` | Choose which weapon is held (the other goes on the back) |
 | `V` | Toggle first person / top-down |
 | `M` | Mute |
@@ -222,6 +221,16 @@ in body space and the nocking point half a metre behind it — from the left sho
 are `z = 0.75` and `z = 1.32`, both exactly one arm length away, so the hand reaches the
 bow at rest and the anchor at full draw.
 
+## Arrows are a resource, not a magazine
+
+There is no reload. The quiver on your back holds **12 arrows**, it visibly empties as you
+shoot, and the only way to refill it is to walk over an **arrow bundle** on the ground. A
+few are kept on the field at all times, never within 5 m of you, so running dry is a reason
+to move rather than a dead end. A full quiver leaves a bundle where it is.
+
+See [BACKLOG.md](BACKLOG.md) for where this is going — enemy drops, recovering spent
+arrows (they already stick in the ground), bundle sizes.
+
 ## Zombies
 
 Waves spawn on a ring around you and close in. Each zombie runs one small state machine
@@ -317,6 +326,7 @@ src/
     Enemy.js                base enemy / the test dummy: health, hit reaction, death
     Zombie.js               chase + telegraphed melee attack state machine
     Skeleton.js             kiting archer: holds a range band, draws, looses
+    ArrowBundle.js          ground pickup that refills the quiver
     HumanoidRig.js          primitive humanoid + hand/back sockets + poses
     weaponModels.js         blockout sword and bow props
   combat/
@@ -343,7 +353,7 @@ tools/
 mouse clicks, and waits on game state rather than wall-clock sleeps (headless software
 rendering runs at ~10 fps, so fixed sleeps mean nothing).
 
-**39/39 checks passing**, covering: boot and render; WASD movement; mouse aim; melee swing
+**42/42 checks passing**, covering: boot and render; WASD movement; mouse aim; melee swing
 and damage numbers; bow draw, release, travel, arc height, ground stick and hit; reload;
 player hit reaction; zombie chase, telegraph, strike, mid-windup movement and death;
 skeleton draw, loose, damage and range keeping; team-correct arrows; charge scaling for
@@ -361,11 +371,16 @@ PASS  enemy arrows do not hit other enemies  (dummy 200/200)
 PASS  zombies keep closing in during their windup  (moved 0.21 m mid-windup at x0.62 speed)
 PASS  forward is faster than strafing, strafing faster than backpedalling  (1.00 / 0.78 / 0.55)
 PASS  the draw hand grips the actual bowstring  (hand to nocking point: 0.058 m)
+PASS  arrows on the back match the arrows you have  (12 shown at full, 4 shown at 4)
+PASS  walking over a bundle refills the quiver  (2 -> 7 arrows)
 
-39/39 checks passed
+42/42 checks passed
 ```
 
 ## Deliberately not built yet
+
+Known issues and the full deferred list live in **[BACKLOG.md](BACKLOG.md)** — including
+the arms and bow animation, which need real elbows before they will look right.
 
 Each of these has a plug point already in place, and nothing else has to change shape:
 
