@@ -33,6 +33,13 @@ const KEY_BINDINGS = {
 
 const PITCH_LIMIT = Math.PI / 2 - 0.05;
 const LOOK_SENSITIVITY = 0.0022;
+/**
+ * Without pointer lock the cursor can teleport — re-entering the window, the
+ * browser recentring it when a lock is granted — and one such jump whips the
+ * whole view around. Real mouse movement never exceeds this per event, so
+ * anything bigger is a teleport and gets dropped.
+ */
+const MAX_UNLOCKED_LOOK_DELTA = 120;
 
 export class InputManager {
   constructor(domElement) {
@@ -58,6 +65,7 @@ export class InputManager {
     this.lookYaw = 0;
     this.lookPitch = 0;
     this.pointerLocked = false;
+    this.skipNextLook = false;
     /**
      * When set, WASD is interpreted relative to this yaw (first person: W is
      * "the way the camera points"). When null, WASD is world-space, which is
@@ -83,10 +91,25 @@ export class InputManager {
     window.addEventListener('blur', () => this.down.clear());
 
     this.dom.addEventListener('pointermove', (e) => {
-      if (this.pointerLocked) {
-        this.lookYaw -= e.movementX * LOOK_SENSITIVITY;
+      // Deltas drive mouse-look whenever first person is active. Pointer lock
+      // makes it seamless, but movementX/Y work unlocked too, so a host that
+      // refuses the lock still gets a playable game.
+      if (this.pointerLocked || this.moveBasisYaw !== null) {
+        const dx = e.movementX ?? 0;
+        const dy = e.movementY ?? 0;
+        if (this.skipNextLook) {
+          this.skipNextLook = false;
+          return;
+        }
+        if (
+          !this.pointerLocked &&
+          (Math.abs(dx) > MAX_UNLOCKED_LOOK_DELTA || Math.abs(dy) > MAX_UNLOCKED_LOOK_DELTA)
+        ) {
+          return;
+        }
+        this.lookYaw -= dx * LOOK_SENSITIVITY;
         this.lookPitch = clamp(
-          this.lookPitch - e.movementY * LOOK_SENSITIVITY,
+          this.lookPitch - dy * LOOK_SENSITIVITY,
           -PITCH_LIMIT,
           PITCH_LIMIT
         );
@@ -97,11 +120,11 @@ export class InputManager {
       this.pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
     });
     this.dom.addEventListener('pointerdown', (e) => {
-      // In first person the first click captures the pointer; it must not also
-      // swing the sword, or every re-focus would attack.
+      // In first person, clicking also (re)captures the pointer. The attack is
+      // still queued: swallowing the click would make the game unplayable
+      // anywhere the lock is refused.
       if (this.moveBasisYaw !== null && !this.pointerLocked) {
         this.dom.requestPointerLock?.();
-        return;
       }
       const action = e.button === 2 ? 'ranged' : 'melee';
       if (!this.down.has(action)) this._queued.add(action);
@@ -110,6 +133,10 @@ export class InputManager {
 
     document.addEventListener('pointerlockchange', () => {
       this.pointerLocked = document.pointerLockElement === this.dom;
+      // Browsers recentre the cursor when the lock engages or releases and
+      // deliver that jump as one huge movement delta. Dropping the first event
+      // after a lock change stops the view snapping on entry and exit.
+      this.skipNextLook = true;
     });
     window.addEventListener('pointerup', (e) => {
       this.down.delete(e.button === 2 ? 'ranged' : 'melee');

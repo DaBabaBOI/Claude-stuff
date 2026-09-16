@@ -65,6 +65,18 @@
   .floater-ranged { color: #a8e6ff; }
   .floater-player { color: #ff8686; }
 
+  /* The game is built around a keyboard and a mouse; say so rather than
+     letting someone poke at an unplayable canvas. */
+  #needs-input {
+    position: absolute; inset: 0; display: none; place-items: center;
+    padding: 24px; background: rgba(10, 13, 19, 0.92); text-align: center;
+  }
+  #needs-input p { max-width: 24rem; line-height: 1.6; }
+  @media (hover: none), (max-width: 700px) {
+    #needs-input { display: grid; }
+    #help { display: none; }
+  }
+
   kbd {
     background: rgba(255,255,255,0.1); border-radius: 4px; padding: 1px 5px;
     font: inherit; font-size: 11px;
@@ -100,6 +112,11 @@
 
     <div id="crosshair"></div>
     <div id="floaters"></div>
+    <div id="needs-input">
+      <p><b>This one needs a keyboard and mouse.</b><br />
+      Open it on a laptop or desktop to play: WASD to move, mouse to aim,
+      click to swing, right click to shoot.</p>
+    </div>
     <div id="dead"><div>You died<small>Press <kbd>Q</kbd> to respawn</small></div></div>
   </div>
 
