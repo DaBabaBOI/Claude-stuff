@@ -163,14 +163,30 @@ function createBow() {
   for (const segment of segments) art.add(segment);
 
   const nockedArrow = createArrowModel();
-  nockedArrow.rotation.x = -Math.PI / 2; // -Z becomes -Y: down the flight axis
   nockedArrow.visible = false;
   art.add(nockedArrow);
+
+  /**
+   * The grip, in the bow's own space: the middle of the riser, which sits at
+   * the hand socket. The nocked arrow runs from the string THROUGH this point,
+   * because that is what the arrow rests on.
+   *
+   *      nock ●
+   *            ╲___ arrow lies along this line ___
+   *             ╲                                 ╲
+   *              ● grip                            ▶ tip, past the riser
+   *
+   * Pointing the arrow straight down the bow's axis instead leaves it floating
+   * beside the bow, since the draw hand is off to one side of the centreline.
+   */
+  const GRIP = new THREE.Vector3(0, -BOW_RADIUS, 0);
+  const ARROW_FORWARD = new THREE.Vector3(0, 0, -1); // the model's own nose
 
   const _up = new THREE.Vector3(0, 1, 0);
   const _dir = new THREE.Vector3();
   const _mid = new THREE.Vector3();
   const _nock = new THREE.Vector3();
+  const _shaft = new THREE.Vector3();
 
   function stretch(mesh, from, to) {
     _dir.subVectors(to, from);
@@ -208,8 +224,13 @@ function createBow() {
 
     nockedArrow.visible = drawAmount > 0.02;
     if (nockedArrow.visible) {
-      // Tail on the string, pointing down the flight axis (-Y).
-      nockedArrow.position.set(_nock.x, _nock.y - ARROW_LENGTH / 2, _nock.z);
+      // Tail on the string, aimed through the grip so the shaft lies across
+      // the riser the way a real arrow rests on the bow.
+      _shaft.subVectors(GRIP, _nock);
+      if (_shaft.lengthSq() < 1e-6) _shaft.set(0, -1, 0);
+      _shaft.normalize();
+      nockedArrow.quaternion.setFromUnitVectors(ARROW_FORWARD, _shaft);
+      nockedArrow.position.copy(_nock).addScaledVector(_shaft, ARROW_LENGTH / 2);
     }
   };
 

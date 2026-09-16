@@ -226,7 +226,17 @@ damage the shot would do right now, and the crosshair tightens as the string com
 Swinging the sword abandons a half-drawn arrow.
 
 The string is real: two segments running from each limb tip to a shared nocking point that
-sits **exactly** on the draw hand, with a brown-and-white arrow nocked on it.
+sits on the draw hand, with a brown-and-white arrow nocked on it. The arrow runs from the
+string **through the grip**, the way an arrow rests on a bow — pointing it straight down
+the bow's own axis instead leaves it floating beside the riser, because the draw hand sits
+off the centreline:
+
+```
+     nock ●
+           ╲___ the shaft lies along this line ___
+            ╲                                      ╲
+             ● grip                                 ▶ tip, past the riser
+```
 
 The bow rides in the **off hand** and is drawn with the main hand, the way an archer
 actually holds one. Holding it in the main hand meant the draw hand had to reach across
