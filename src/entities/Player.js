@@ -49,7 +49,8 @@ export class Player {
     this.equippedMelee = null;
     this.equippedRanged = null;
     this.equippedArmor = null;      // milestone 3
-    this.abilities = [null, null, null]; // milestone 4 — three independent slots
+    /** Three independent slots, each with its own cooldown. */
+    this.abilities = [null, null, null];
 
     /** Which weapon is in the hand socket; the other sits on the back. */
     this.heldSlot = 'melee';
@@ -103,6 +104,11 @@ export class Player {
     this.rig.quiverSocket.add(this.quiver);
 
     this.attachWeapons();
+  }
+
+  /** Fire the ability in a slot. Returns whether it went off. */
+  useAbility(index, state) {
+    return this.abilities[index]?.trigger(state, this) ?? false;
   }
 
   /** Collect arrows from a bundle. Returns how many fitted in the quiver. */
@@ -268,6 +274,7 @@ export class Player {
     // --- Weapons ----------------------------------------------------------
     this.equippedMelee?.update(dt, { owner: this, state });
     this.equippedRanged?.update(dt, { owner: this, state });
+    for (const ability of this.abilities) ability?.update(dt, state, this);
 
     if (this.hitTimer < HIT_REACTION_TIME) this.hitTimer += dt;
 

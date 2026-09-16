@@ -26,6 +26,8 @@ const HIP_Y = 0.8;
 const LEG_LENGTH = 0.8;
 const SHOULDER_Y = 1.42;
 const ARM_LENGTH = 0.7;
+const UPPER_ARM = 0.37;
+const FOREARM = ARM_LENGTH - UPPER_ARM;
 const TORSO_Y = 1.15;
 
 export const RIG_STATES = /** @type {const} */ ([
@@ -48,6 +50,106 @@ function limb(geometry, material, length) {
   return group;
 }
 
+/**
+ * An arm with an elbow: shoulder -> upper arm -> elbow -> forearm -> hand.
+ *
+ *     shoulder ●
+ *              │ upper arm (0.37)
+ *        elbow ●
+ *               ╲ forearm (0.33)
+ *                ● hand socket
+ *
+ * Both joints keep the project's convention — the limb hangs down its own local
+ * -Y — so the existing FK poses still address the shoulder exactly as before,
+ * and the elbow is one extra rotation on top.
+ */
+function buildArm(upperGeometry, foreGeometry, material) {
+  const shoulder = limb(upperGeometry, material, UPPER_ARM);
+  shoulder.rotation.order = 'YXZ';
+
+  const elbow = limb(foreGeometry, material, FOREARM);
+  elbow.position.y = -UPPER_ARM;
+  shoulder.add(elbow);
+
+  const hand = new THREE.Object3D();
+  hand.position.y = -FOREARM - 0.02;
+  elbow.add(hand);
+
+  return { shoulder, elbow, hand };
+}
+
+/**
+ * Two-bone IK: point an arm so its hand lands on `target`.
+ *
+ *              elbow
+ *               ●
+ *        l1   ╱   ╲  l2
+ *           ╱       ╲
+ *  shoulder ●─── d ───● target
+ *
+ * The triangle gives both angles by the law of cosines: the elbow's interior
+ * angle from (l1, l2, d), and how far the upper arm lifts off the straight line
+ * to the target. The pole vector decides which way the elbow points — down and
+ * out for a bow arm, up and back for a draw arm — since the triangle alone
+ * leaves the arm free to spin around the shoulder-to-target axis.
+ */
+const _ikTarget = new THREE.Vector3();
+const _ikDir = new THREE.Vector3();
+const _ikAxis = new THREE.Vector3();
+const _ikUpper = new THREE.Vector3();
+const _ikX = new THREE.Vector3();
+const _ikY = new THREE.Vector3();
+const _ikZ = new THREE.Vector3();
+const _ikBasis = new THREE.Matrix4();
+const _ikQuat = new THREE.Quaternion();
+
+/** Hand targets in body space, and which way each elbow points. */
+const BOW_HAND = new THREE.Vector3();
+const DRAW_HAND = new THREE.Vector3();
+const BOW_POLE = new THREE.Vector3(0, -1, -0.2).normalize();   // elbow down/out
+const DRAW_POLE = new THREE.Vector3(0, 0.55, 0.85).normalize(); // elbow up/back
+/**
+ * The IK frame's X axis is the elbow's bend axis, which points wherever the
+ * pole vector puts it — fine for the arm, wrong for the weapon in the hand.
+ * This rolls the HAND rather than the arm: rolling the shoulder frame instead
+ * would flip the elbow's bend axis and break the IK chain, which is exactly
+ * what happened the first time.
+ */
+const BOW_ROLL = 0;
+
+function solveArmIK(shoulder, elbow, l1, l2, targetLocal, pole) {
+  _ikTarget.copy(targetLocal).sub(shoulder.position);
+  let d = _ikTarget.length();
+  if (d < 1e-4) return;
+
+  // Never fully straight and never folded flat: both are singular, and a
+  // locked-straight arm looks like a mannequin.
+  d = clamp(d, Math.abs(l1 - l2) + 0.02, l1 + l2 - 0.01);
+  _ikDir.copy(_ikTarget).normalize();
+
+  const elbowInterior = Math.acos(clamp((l1 * l1 + l2 * l2 - d * d) / (2 * l1 * l2), -1, 1));
+  const lift = Math.acos(clamp((l1 * l1 + d * d - l2 * l2) / (2 * l1 * d), -1, 1));
+
+  // Bend plane: perpendicular to both the target direction and the pole.
+  _ikAxis.crossVectors(_ikDir, pole);
+  if (_ikAxis.lengthSq() < 1e-6) _ikAxis.set(1, 0, 0);
+  _ikAxis.normalize();
+
+  _ikUpper.copy(_ikDir).applyAxisAngle(_ikAxis, -lift).normalize();
+
+  // Build the shoulder's frame: local -Y down the upper arm, local X on the
+  // bend axis so the elbow's rotation.x bends inside that plane.
+  _ikY.copy(_ikUpper).multiplyScalar(-1);
+  _ikX.copy(_ikAxis);
+  _ikZ.crossVectors(_ikX, _ikY).normalize();
+  _ikX.crossVectors(_ikY, _ikZ).normalize();
+  _ikBasis.makeBasis(_ikX, _ikY, _ikZ);
+  _ikQuat.setFromRotationMatrix(_ikBasis);
+
+  shoulder.quaternion.copy(_ikQuat);
+  elbow.rotation.set(Math.PI - elbowInterior, 0, 0);
+}
+
 const easeOut = (t) => 1 - Math.pow(1 - t, 3);
 const easeIn = (t) => t * t;
 
@@ -59,7 +161,10 @@ const easeIn = (t) => t * t;
  */
 const GRIP_CARRY = 1.0;
 const GRIP_SLASH = 0.0;
-const GRIP_BOW = 0.35;
+// With IK the bow arm is already horizontal and pointing where you aim, so the
+// bow wants to sit straight in line with the forearm — any tilt just angles the
+// arrow at the floor.
+const GRIP_BOW = 0;
 
 export class HumanoidRig {
   /**
@@ -106,21 +211,25 @@ export class HumanoidRig {
     this.body.add(brow);
     this.brow = brow;
 
-    const armGeometry = new THREE.CylinderGeometry(0.085, 0.075, ARM_LENGTH, 8);
+    const upperGeometry = new THREE.CylinderGeometry(0.088, 0.078, UPPER_ARM, 8);
+    const foreGeometry = new THREE.CylinderGeometry(0.075, 0.066, FOREARM, 8);
     const legGeometry = new THREE.CylinderGeometry(0.11, 0.095, LEG_LENGTH, 8);
 
-    this.shoulderL = limb(armGeometry, this.materials.skin, ARM_LENGTH);
+    const armL = buildArm(upperGeometry, foreGeometry, this.materials.skin);
+    const armR = buildArm(upperGeometry, foreGeometry, this.materials.skin);
+    this.shoulderL = armL.shoulder;
+    this.elbowL = armL.elbow;
     this.shoulderL.position.set(-0.34, SHOULDER_Y, 0);
-    this.shoulderR = limb(armGeometry, this.materials.skin, ARM_LENGTH);
+    this.shoulderR = armR.shoulder;
+    this.elbowR = armR.elbow;
     this.shoulderR.position.set(0.34, SHOULDER_Y, 0);
-    // YXZ: rotation.y is applied last, so it sweeps the arm horizontally around
-    // the body no matter how far the arm is already raised. With the default
-    // XYZ order a "horizontal" slash would tip as the arm lifted.
+    // Shoulders use Euler order YXZ (set in buildArm): rotation.y is applied
+    // last, so it sweeps the arm horizontally around the body no matter how far
+    // the arm is already raised. Under the default XYZ a "horizontal" slash
+    // tips over as the arm lifts.
     //   rotation.x  raise forward (+) / back (-)
     //   rotation.y  sweep left (+) / right (-)
     //   rotation.z  push out to the side
-    this.shoulderL.rotation.order = 'YXZ';
-    this.shoulderR.rotation.order = 'YXZ';
     this.body.add(this.shoulderL, this.shoulderR);
 
     this.hipL = limb(legGeometry, this.materials.accent, LEG_LENGTH);
@@ -130,16 +239,12 @@ export class HumanoidRig {
     this.body.add(this.hipL, this.hipR);
 
     // --- Attachment points. Swap what is parented here, never the rig. ---
-    this.handSocket = new THREE.Object3D();
-    this.handSocket.position.set(0, -ARM_LENGTH - 0.02, 0);
+    this.handSocket = armR.hand;
     this.handSocket.rotation.x = GRIP_CARRY;
-    this.shoulderR.add(this.handSocket);
 
     // Draw hand: not a weapon mount, but the string has to be gripped by
     // something, so the bow model is told where this point is each frame.
-    this.drawHandSocket = new THREE.Object3D();
-    this.drawHandSocket.position.set(0, -ARM_LENGTH - 0.02, 0);
-    this.shoulderL.add(this.drawHandSocket);
+    this.drawHandSocket = armL.hand;
 
     this.backSocket = new THREE.Object3D();
     // Slung diagonally: grip at the lower right of the back, weapon extending
@@ -226,6 +331,11 @@ export class HumanoidRig {
     // ---- Layer 2: attacks override the arms ------------------------------
     let targetArmRY = 0;
     let targetGrip = GRIP_CARRY;
+    // Elbows: a little bend at rest, more when coiled, straight on a follow
+    // through. FK poses carry a bend value; the bow poses use IK instead.
+    let targetElbowL = 0.25 + Math.abs(swing) * 0.25;
+    let targetElbowR = 0.25 + Math.abs(swing) * 0.25;
+    let ikHandled = false;
 
     if (state === 'attack-melee') {
       // A HORIZONTAL slash, because the damage shape is a horizontal cone:
@@ -238,12 +348,14 @@ export class HumanoidRig {
         targetArmRX = lerp(targetArmRX, 1.2, u);
         targetArmRY = lerp(0, -1.0, u);
         targetArmRZ = lerp(targetArmRZ, -0.15, u);
+        targetElbowR = lerp(0.25, 1.15, u);    // blade cocked back by the ear
         twist = lerp(0, -0.42, u);
       } else if (p < 0.6) {
         const u = easeOut((p - 0.35) / 0.25);  // active: the slash itself
         targetArmRX = lerp(1.2, 1.5, u);   // arm level at shoulder height
         targetArmRY = lerp(-1.0, 1.0, u);  // the 100-degree sweep itself
         targetArmRZ = -0.15;
+        targetElbowR = lerp(1.15, 0.08, u);    // extends through the cut
         twist = lerp(-0.42, 0.5, u);
       } else {
         const u = easeOut((p - 0.6) / 0.4);    // recovery: settle back
@@ -251,6 +363,7 @@ export class HumanoidRig {
         targetArmRY = lerp(1.0, 0, u);
         targetArmRZ = lerp(-0.15, targetArmRZ, u);
         twist = lerp(0.5, 0, u);
+        targetElbowR = lerp(0.08, 0.25, u);
         targetGrip = lerp(GRIP_SLASH, GRIP_CARRY, u);
       }
       targetArmLX = lerp(targetArmLX, 0.45, 0.6);
@@ -263,6 +376,8 @@ export class HumanoidRig {
         targetArmRX = lerp(targetArmRX, 2.5, u);
         targetArmLZ = lerp(targetArmLZ, 0.35, u);
         targetArmRZ = lerp(targetArmRZ, -0.35, u);
+        targetElbowL = lerp(0.25, 1.0, u);     // claws drawn back over the head
+        targetElbowR = lerp(0.25, 1.0, u);
         lean = lerp(lean, -0.25, u);
       } else {
         const u = easeOut((p - 0.55) / 0.45);  // fast chop down
@@ -270,65 +385,65 @@ export class HumanoidRig {
         targetArmRX = lerp(2.5, 0.9, u);
         targetArmLZ = lerp(0.35, 0.15, u);
         targetArmRZ = lerp(-0.35, -0.15, u);
+        targetElbowL = lerp(1.0, 0.12, u);     // swipe lands with arms extended
+        targetElbowR = lerp(1.0, 0.12, u);
         lean = lerp(-0.25, 0.3, u);
       }
-    } else if (state === 'draw-ranged') {
-      // Held pose while the string is being pulled: bow arm out, draw hand
-      // travelling back to the ear as `drawAmount` climbs. This is the whole
-      // tell for a charged shot — yours and a skeleton's alike.
-      targetGrip = GRIP_BOW;
-      targetArmRX = 1.45;
-      targetArmRZ = -0.05;
-      targetArmRY = -0.12;
+    } else if (state === 'draw-ranged' || state === 'attack-ranged') {
       /**
-       * The draw hand has to end up ON the string, not somewhere near it, so
-       * these angles are solved rather than eyeballed.
+       * Bow poses are IK: both hands are placed in body space and the arms are
+       * solved to reach them. That is what lets the draw hand sit exactly on
+       * the string, and it gives the draw arm a real bent elbow instead of one
+       * rigid reach across the chest.
        *
-       * With shoulders on Euler order YXZ and the arm hanging down its local
-       * -Y, setting rotation.x to ~PI/2 lays the arm horizontal; rotation.z
-       * then swings it across the body, and the hand lands at
-       *
-       *     shoulder + 0.7 * (sin z, ~0, -cos z)
-       *
-       * The bow grip sits at about (0.33, 1.42, -0.69) in body space, and the
-       * nocking point half a metre behind it at (0.33, 1.42, -0.19). From the
-       * left shoulder at (-0.34, 1.42, 0) those are z = 0.75 and z = 1.32 —
-       * one arm length away, so the hand reaches both exactly.
+       *   bow hand    out front, arm nearly straight
+       *   draw hand   travels from beside the bow back to the anchor at the
+       *               cheek as `drawAmount` climbs; the elbow swings up and
+       *               back (pole vector), which is the shape of a real draw
        */
-      targetArmLX = lerp(1.45, 1.4, drawAmount);
-      targetArmLZ = lerp(0.75, 1.32, drawAmount);
-      twist = lerp(0.1, 0.34, drawAmount);
-    } else if (state === 'attack-ranged') {
+      const drawing = state === 'draw-ranged';
       const p = clamp(attackProgress, 0, 1);
-      // Bow arm extended FORWARD (positive rotation.x); the draw hand snaps
-      // back on release and pulls the next arrow.
+      // On release the hand snaps back past the anchor, then returns to the bow.
+      const pull = drawing ? drawAmount : p < 0.3 ? 1.1 : lerp(1.1, 0, easeOut((p - 0.3) / 0.7));
+
       targetGrip = GRIP_BOW;
-      targetArmRX = 1.45;
-      targetArmRZ = -0.05;
-      targetArmRY = -0.12;
-      if (p < 0.3) {
-        const u = p / 0.3;                     // follow-through past the anchor
-        targetArmLX = lerp(1.4, 1.35, u);
-        targetArmLZ = lerp(1.32, 1.5, u);
-      } else {
-        const u = easeOut((p - 0.3) / 0.7);    // hand comes back to the bow
-        targetArmLX = lerp(1.35, 1.45, u);
-        targetArmLZ = lerp(1.5, 0.75, u);
-      }
-      twist = 0.22;
+      twist = lerp(0.1, 0.34, clamp(pull, 0, 1));
+
+      BOW_HAND.set(0.3, 1.45, -0.7);
+      DRAW_HAND.set(
+        lerp(0.27, 0.19, pull),
+        lerp(1.42, 1.53, pull),
+        lerp(-0.46, 0.04, pull)
+      );
+
+      solveArmIK(this.shoulderR, this.elbowR, UPPER_ARM, FOREARM, BOW_HAND, BOW_POLE);
+      solveArmIK(this.shoulderL, this.elbowL, UPPER_ARM, FOREARM, DRAW_HAND, DRAW_POLE);
+      ikHandled = true;
     }
 
     const smoothing = state.startsWith('attack') || state === 'draw-ranged' ? 0.0005 : 0.002;
     this.hipL.rotation.x = damp(this.hipL.rotation.x, targetLegL, smoothing, dt);
     this.hipR.rotation.x = damp(this.hipR.rotation.x, targetLegR, smoothing, dt);
-    this.shoulderL.rotation.x = damp(this.shoulderL.rotation.x, targetArmLX, smoothing, dt);
-    this.shoulderR.rotation.x = damp(this.shoulderR.rotation.x, targetArmRX, smoothing, dt);
-    this.shoulderL.rotation.z = damp(this.shoulderL.rotation.z, targetArmLZ, smoothing, dt);
-    this.shoulderR.rotation.z = damp(this.shoulderR.rotation.z, targetArmRZ, smoothing, dt);
-    this.shoulderR.rotation.y = damp(this.shoulderR.rotation.y, targetArmRY, smoothing, dt);
+
+    if (!ikHandled) {
+      this.shoulderL.rotation.x = damp(this.shoulderL.rotation.x, targetArmLX, smoothing, dt);
+      this.shoulderR.rotation.x = damp(this.shoulderR.rotation.x, targetArmRX, smoothing, dt);
+      this.shoulderL.rotation.z = damp(this.shoulderL.rotation.z, targetArmLZ, smoothing, dt);
+      this.shoulderR.rotation.z = damp(this.shoulderR.rotation.z, targetArmRZ, smoothing, dt);
+      this.shoulderR.rotation.y = damp(this.shoulderR.rotation.y, targetArmRY, smoothing, dt);
+      this.shoulderL.rotation.y = damp(this.shoulderL.rotation.y, 0, smoothing, dt);
+      this.elbowL.rotation.x = damp(this.elbowL.rotation.x, targetElbowL, smoothing, dt);
+      this.elbowR.rotation.x = damp(this.elbowR.rotation.x, targetElbowR, smoothing, dt);
+    }
 
     this.gripTilt = damp(this.gripTilt, targetGrip, smoothing, dt);
     this.handSocket.rotation.x = this.gripTilt;
+    this.handSocket.rotation.y = damp(
+      this.handSocket.rotation.y,
+      ikHandled ? BOW_ROLL : 0,
+      smoothing,
+      dt
+    );
 
     // ---- Layer 3: hit reaction (additive stagger) ------------------------
     // Sin curve: snaps into the recoil and eases back out, so a hit reads even

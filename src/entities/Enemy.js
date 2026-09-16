@@ -15,6 +15,8 @@ export class Enemy {
     this.maxHealth = maxHealth;
     this.health = maxHealth;
     this.radius = 0.45;
+    /** Flat damage reduction from armour. Rank decides it for zombies. */
+    this.defense = 0;
     this.height = 2.0; // used by the projectile height check
     this.respawnDelay = respawnDelay;
 
@@ -34,7 +36,9 @@ export class Enemy {
 
   takeDamage(amount, state, { kind = 'melee', fromX = 0, fromZ = 0 } = {}) {
     if (this.dead) return;
-    const applied = Math.round(amount);
+    // Armour never reduces a hit to nothing: a chip of damage always lands, so
+    // an armoured enemy is slower to kill, never immune.
+    const applied = Math.max(1, Math.round(amount - this.defense));
     this.health = Math.max(0, this.health - applied);
     this.hitTimer = 0;
     this.rig.triggerFlash(1);

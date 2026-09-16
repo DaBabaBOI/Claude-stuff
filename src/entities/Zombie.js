@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Enemy } from './Enemy.js';
+import { createArmour, createWeaponModel } from './weaponModels.js';
 import { angleDelta, clamp, dampAngle, yawFromDirection } from '../mathUtils.js';
 
 /**
@@ -20,6 +21,54 @@ import { angleDelta, clamp, dampAngle, yawFromDirection } from '../mathUtils.js'
  * backing off during the windup genuinely saves you.
  */
 
+/**
+ * Zombie ranks. A wave rolls each spawn against these weights, and the table is
+ * the whole balance surface: kit, stats and how it reads on screen.
+ *
+ *   RISEN     bare hands, no armour        — the baseline you already know
+ *   MAILED    helmet + chest plate         — slower, soaks 3 damage a hit
+ *   ARMED     sword                        — longer reach, hits harder, faster
+ *   REVENANT  both                         — rare, and worth spending a bow on
+ *
+ * `weight` is relative, and shifts toward the heavier ranks as waves go on (see
+ * rollRank), so the fight escalates without a separate difficulty knob.
+ */
+export const ZOMBIE_RANKS = [
+  {
+    id: 'risen', name: 'Risen', weight: 62, lateWeight: 24,
+    health: 60, damage: 9, speed: 2.3, defense: 0,
+    reach: 1.9, armour: null, weapon: null, tint: 0x4c6b3c,
+  },
+  {
+    id: 'mailed', name: 'Mailed', weight: 22, lateWeight: 30,
+    health: 85, damage: 11, speed: 2.0, defense: 3,
+    reach: 1.9, armour: { helmet: true, chest: true }, weapon: null, tint: 0x46603a,
+  },
+  {
+    id: 'armed', name: 'Armed', weight: 13, lateWeight: 28,
+    health: 70, damage: 15, speed: 2.5, defense: 0,
+    reach: 2.5, armour: null, weapon: 'sword', tint: 0x55703f,
+  },
+  {
+    id: 'revenant', name: 'Revenant', weight: 3, lateWeight: 18,
+    health: 110, damage: 18, speed: 2.25, defense: 4,
+    reach: 2.5, armour: { helmet: true, chest: true }, weapon: 'sword', tint: 0x3f5836,
+  },
+];
+
+/** Pick a rank, leaning heavier the further into the run you are. */
+export function rollRank(progress = 0) {
+  const t = Math.min(1, progress);
+  const weights = ZOMBIE_RANKS.map((r) => r.weight + (r.lateWeight - r.weight) * t);
+  const total = weights.reduce((a, b) => a + b, 0);
+  let roll = Math.random() * total;
+  for (let i = 0; i < ZOMBIE_RANKS.length; i++) {
+    roll -= weights[i];
+    if (roll <= 0) return ZOMBIE_RANKS[i];
+  }
+  return ZOMBIE_RANKS[0];
+}
+
 const STATE = {
   IDLE: 'idle',
   CHASE: 'chase',
@@ -29,18 +78,28 @@ const STATE = {
 };
 
 export class Zombie extends Enemy {
-  constructor({ scene, position, speed = 2.3, damage = 9 }) {
-    super({ scene, position, maxHealth: 60, respawnDelay: Infinity });
+  constructor({ scene, position, rank = ZOMBIE_RANKS[0] }) {
+    super({ scene, position, maxHealth: rank.health, respawnDelay: Infinity });
 
-    // Re-skin the inherited rig: sunken green, ragged.
-    this.rig.materials.cloth.color.setHex(0x4c6b3c);
+    this.rank = rank;
+
+    // Re-skin the inherited rig: sunken green, ragged. Heavier ranks are darker.
+    this.rig.materials.cloth.color.setHex(rank.tint);
     this.rig.materials.accent.color.setHex(0x2f4227);
     this.rig.materials.skin.color.setHex(0x9fb08a);
 
-    this.speed = speed;
-    this.damage = damage;
+    if (rank.armour) {
+      this.rig.body.add(createArmour(rank.armour));
+      this.defense = rank.defense;
+    }
+    if (rank.weapon) {
+      this.rig.handSocket.add(createWeaponModel(rank.weapon));
+    }
+
+    this.speed = rank.speed;
+    this.damage = rank.damage;
     this.aggroRange = 16;
-    this.attackRange = 1.9;
+    this.attackRange = rank.reach;
     this.attackArc = (100 * Math.PI) / 180;
 
     this.windupTime = 0.42;
@@ -177,7 +236,13 @@ export class Zombie extends Enemy {
     this.rig.root.rotation.y = this.facing;
     this.rig.update(dt, {
       time: state.time,
-      state: this.isAttacking ? 'attack-claw' : moving ? 'walk' : 'idle',
+      state: this.isAttacking
+        ? this.rank.weapon
+          ? 'attack-melee'
+          : 'attack-claw'
+        : moving
+          ? 'walk'
+          : 'idle',
       moveSpeed01: moving,
       attackProgress: this.animationProgress,
       hitProgress: this.hitTimer / 0.18,

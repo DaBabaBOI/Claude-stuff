@@ -35,6 +35,8 @@ npm run verify       # headless acceptance test, writes screenshot.png
 | Left click | Swing the melee weapon |
 | Hold right click | Draw the bow — release to loose |
 | `1` / `2` | Choose which weapon is held (the other goes on the back) |
+| `Q` | Mend — heal yourself |
+| `I` | Inventory (pauses) |
 | `V` | Toggle first person / top-down |
 | `M` | Mute |
 | `H` / `Q` | Debug: hurt yourself / reset the scene |
@@ -119,6 +121,27 @@ locomotion (idle / walk)  →  attack overrides the arms  →  hit recoil (addit
 
 Swapping in a rigged GLTF model later means rewriting `HumanoidRig.js` and nothing else:
 gameplay code never touches a limb.
+
+Arms have real joints: shoulder → upper arm (0.37 m) → elbow → forearm (0.33 m) → hand.
+The bow poses place both hands by **two-bone IK** rather than hand-solved angles:
+
+```
+              elbow
+               ●
+        l1   ╱   ╲  l2
+           ╱       ╲
+  shoulder ●─── d ───● hand target
+```
+
+The law of cosines gives both angles from the triangle — the elbow's interior angle from
+`(l1, l2, d)`, and how far the upper arm lifts off the straight line to the target. A
+**pole vector** decides which way the elbow points (down and out for the bow arm, up and
+back for the draw arm), since the triangle alone leaves the arm free to spin around the
+shoulder-to-target axis.
+
+One trap worth recording: the IK frame's X axis *is* the elbow's bend axis, so rolling the
+shoulder frame to orient the held bow flips that axis and breaks the chain — the hand then
+misses its target by 22 cm. The roll belongs on the hand, not the arm.
 
 **Socket orientation rule:** the hand socket sits at the *end* of the arm, and the arm's
 local −Y runs down the limb away from the shoulder. A weapon must therefore be modelled
@@ -231,6 +254,19 @@ to move rather than a dead end. A full quiver leaves a bundle where it is.
 See [BACKLOG.md](BACKLOG.md) for where this is going — enemy drops, recovering spent
 arrows (they already stick in the ground), bundle sizes.
 
+## Mend, and the ability slots
+
+`Q` heals you for 32 on a **7 second cooldown**, costing 25 stamina. The short
+cooldown is the point: it is part of the rhythm of a fight, not an emergency button
+you hoard. What keeps it honest is that healing and sprinting draw on the same stamina
+pool, so escaping and recovering compete. It refuses to fire at full health, so a
+mistimed press does not eat the cooldown for nothing.
+
+It lives in `Player.abilities[0]`, built on an `Ability` base class that owns the
+cooldown and cost bookkeeping — subclasses override `apply()`, so neither can be
+forgotten. Slots 2 and 3 (`E`, `R`) are still empty. Cooldowns are per ability, never
+shared, so all three can be planned around independently.
+
 ## Zombies
 
 Waves spawn on a ring around you and close in. Each zombie runs one small state machine
@@ -250,6 +286,20 @@ The important part is that **WINDUP is long and visible** — both arms rear up 
 while **STRIKE is a single instant** that only lands if you are still inside the cone at
 that moment. Backing off during the telegraph genuinely saves you, which is what makes
 the fight readable instead of a coin flip.
+
+Zombies spawn at one of four **ranks**, rolled per spawn and leaning heavier the
+longer the run goes:
+
+| Rank | Kit | Health | Damage | Reach | Defense |
+| --- | --- | --- | --- | --- | --- |
+| Risen | bare hands | 60 | 9 | 1.9 m | 0 |
+| Mailed | helmet + chest plate | 85 | 11 | 1.9 m | 3 |
+| Armed | sword | 70 | 15 | 2.5 m | 0 |
+| Revenant | both | 110 | 18 | 2.5 m | 4 |
+
+An armed zombie swings the sword animation instead of clawing, and outranges you if
+you misjudge the gap. Armour is flat damage reduction, but never reduces a hit to
+nothing — a chip always lands, so armoured enemies are slower to kill, never immune.
 
 Crucially, a zombie **keeps walking and turning through its windup** (at 62% speed) rather
 than rooting in place. A zombie that freezes the moment it raises its arms is trivially
@@ -300,6 +350,14 @@ Entities never touch the audio system. They push events onto `GameState.events`,
 numbers. Browsers refuse to start audio before a gesture, so the context opens on your
 first click or key press. `M` mutes.
 
+## Inventory
+
+`I` pauses and shows what you are carrying with the numbers behind it: melee damage,
+attacks/sec, DPS, range and arc; bow damage range, draw time, rate, range, arrow speed
+and arrows left; the empty armour slot; your three ability slots with their cooldowns;
+and your own health, stamina, move speed and defense. Read-only for now — there is
+nothing to swap to yet.
+
 ## Conventions worth knowing
 
 - **Yaw**: `rotation.y = yaw` points an object's local −Z along `(-sin yaw, -cos yaw)`.
@@ -336,6 +394,9 @@ src/
     ProjectileSystem.js     ballistic arrows, gravity, swept collision, ground stick
                             (arrow art is shared with the bow's nocked arrow)
     weapons.config.js       stat table (Phase 1: sword + bow only)
+  abilities/
+    Ability.js              base class: cooldown, cost, trigger bookkeeping
+    Mend.js                 the heal (Q)
   systems/
     InputManager.js         keyboard/mouse/gamepad → moveVector + aimYaw
     CameraController.js     locked top-down follow camera + first person
@@ -353,7 +414,7 @@ tools/
 mouse clicks, and waits on game state rather than wall-clock sleeps (headless software
 rendering runs at ~10 fps, so fixed sleeps mean nothing).
 
-**42/42 checks passing**, covering: boot and render; WASD movement; mouse aim; melee swing
+**55/55 checks passing**, covering: boot and render; WASD movement; mouse aim; melee swing
 and damage numbers; bow draw, release, travel, arc height, ground stick and hit; reload;
 player hit reaction; zombie chase, telegraph, strike, mid-windup movement and death;
 skeleton draw, loose, damage and range keeping; team-correct arrows; charge scaling for
@@ -373,8 +434,13 @@ PASS  forward is faster than strafing, strafing faster than backpedalling  (1.00
 PASS  the draw hand grips the actual bowstring  (hand to nocking point: 0.058 m)
 PASS  arrows on the back match the arrows you have  (12 shown at full, 4 shown at 4)
 PASS  walking over a bundle refills the quiver  (2 -> 7 arrows)
+PASS  IK puts both hands on their targets  (bow hand off by 0.9 cm, draw hand 2.0 cm)
+PASS  the draw arm bends and the bow arm stays long  (draw elbow 78°, bow elbow 19°)
+PASS  armoured zombies wear armour and soak damage  (took 17 vs 20, defense 3)
+PASS  Q heals you  (40 -> 72 health)
+PASS  the heal goes on cooldown  (7s cooldown, 7.0s left)
 
-42/42 checks passed
+55/55 checks passed
 ```
 
 ## Deliberately not built yet

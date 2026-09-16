@@ -635,6 +635,142 @@ try {
     cues.heard.join(', '));
   check('the audio system drains the event queue each frame', cues.queueDrained === 0);
 
+  // --- 13. elbows ------------------------------------------------------------
+  await quiet();
+  const ik = await page.evaluate(async () => {
+    const g = window.__game;
+    g.player.position.set(0, 0, 0);
+    g.player.facing = 0;
+    g.player.equippedRanged.nextReadyAt = 0;
+    g.player.equippedRanged.ammo = 12;
+    g.player.drawRanged(g.state);
+    for (let i = 0; i < 120 && g.player.drawStrength < 0.99; i++) {
+      await new Promise((r) => requestAnimationFrame(r));
+    }
+    const rig = g.player.rig;
+    const scratch = g.player.position.clone();
+    const toBody = (obj) => rig.body.worldToLocal(obj.getWorldPosition(scratch.clone()));
+    const bow = toBody(rig.handSocket);
+    const draw = toBody(rig.drawHandSocket);
+    const gap = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
+    g.player.equippedRanged.cancelDraw();
+    return {
+      bowGap: gap(bow, { x: 0.3, y: 1.45, z: -0.7 }),
+      drawGap: gap(draw, { x: 0.19, y: 1.53, z: 0.04 }),
+      bowBend: rig.elbowR.rotation.x,
+      drawBend: rig.elbowL.rotation.x,
+      hasElbows: Boolean(rig.elbowL && rig.elbowR),
+    };
+  });
+  check('arms have elbows', ik.hasElbows);
+  check('IK puts both hands on their targets', ik.bowGap < 0.04 && ik.drawGap < 0.04,
+    `bow hand off by ${(ik.bowGap * 100).toFixed(1)} cm, draw hand ${(ik.drawGap * 100).toFixed(1)} cm`);
+  check('the draw arm bends and the bow arm stays long', ik.drawBend > 1 && ik.bowBend < 0.6,
+    `draw elbow ${((ik.drawBend * 180) / Math.PI).toFixed(0)}°, bow elbow ${((ik.bowBend * 180) / Math.PI).toFixed(0)}°`);
+
+  // --- 14. zombie ranks ------------------------------------------------------
+  const ranks = await page.evaluate(async () => {
+    const g = window.__game;
+    g.clearZombies();
+    const seen = new Set();
+    // Roll a lot of late-game spawns: every rank should turn up.
+    for (let i = 0; i < 400; i++) seen.add(g.rollRank(1).id);
+    const armoured = g.spawnRankedZombie('mailed', { x: 0, z: -3 });
+    const armed = g.spawnRankedZombie('armed', { x: 3, z: -3 });
+    const plain = g.spawnRankedZombie('risen', { x: -3, z: -3 });
+    await new Promise((r) => requestAnimationFrame(r));
+    const hit = (z) => {
+      const before = z.health;
+      z.takeDamage(20, g.state, {});
+      return before - z.health;
+    };
+    return {
+      rolled: [...seen],
+      armouredTook: hit(armoured),
+      plainTook: hit(plain),
+      armouredDefense: armoured.defense,
+      armedReach: armed.attackRange,
+      plainReach: plain.attackRange,
+      armedDamage: armed.damage,
+      plainDamage: plain.damage,
+      armedHasSword: armed.rig.handSocket.children.length > 0,
+      armouredHasArmour: armoured.rig.body.children.length > plain.rig.body.children.length,
+    };
+  });
+  check('zombies roll into ranks', ranks.rolled.length === 4, ranks.rolled.join(', '));
+  check('armoured zombies wear armour and soak damage',
+    ranks.armouredHasArmour && ranks.armouredTook < ranks.plainTook,
+    `took ${ranks.armouredTook} vs ${ranks.plainTook} from the same hit (defense ${ranks.armouredDefense})`);
+  check('armed zombies carry a sword and outrange the rest',
+    ranks.armedHasSword && ranks.armedReach > ranks.plainReach && ranks.armedDamage > ranks.plainDamage,
+    `reach ${ranks.armedReach} m vs ${ranks.plainReach} m, damage ${ranks.armedDamage} vs ${ranks.plainDamage}`);
+
+  // --- 15. the heal ----------------------------------------------------------
+  await quiet();
+  const heal = await page.evaluate(() => {
+    const g = window.__game;
+    const mend = g.player.abilities[0];
+    mend.readyAt = 0;
+    g.player.health = 40;
+    g.player.stamina = g.player.maxStamina;
+    const staminaBefore = g.player.stamina;
+
+    const used = g.player.useAbility(0, g.state);
+    const afterHeal = g.player.health;
+    const secondTry = g.player.useAbility(0, g.state); // still cooling down
+    const remaining = mend.cooldownRemaining(g.state.time); // read BEFORE resetting
+
+    g.player.health = g.player.maxHealth;
+    mend.readyAt = 0;
+    const atFullHealth = g.player.useAbility(0, g.state);
+
+    return {
+      name: mend.name,
+      used,
+      afterHeal,
+      secondTry,
+      atFullHealth,
+      cooldown: mend.cooldown,
+      staminaSpent: staminaBefore - g.player.stamina,
+      remaining,
+    };
+  });
+  check('Q heals you', heal.used && heal.afterHeal > 40, `40 -> ${heal.afterHeal} health`);
+  check('the heal costs stamina', heal.staminaSpent > 0, `${heal.staminaSpent} stamina`);
+  check('the heal goes on cooldown', !heal.secondTry && heal.remaining > 0,
+    `${heal.cooldown}s cooldown, ${heal.remaining.toFixed(1)}s left`);
+  check('the heal refuses to be wasted at full health', !heal.atFullHealth);
+
+  // --- 16. inventory ---------------------------------------------------------
+  const inventory = await page.evaluate(() => {
+    const g = window.__game;
+    g.toggleInventory();
+    const open = document.getElementById('inventory').classList.contains('show');
+    const text = document.getElementById('inv-list').textContent;
+    const paused = g.state.paused;
+    g.toggleInventory();
+    return {
+      open,
+      paused,
+      closed: !document.getElementById('inventory').classList.contains('show'),
+      running: !g.state.paused,
+      mentions: {
+        melee: text.includes(g.player.equippedMelee.name),
+        ranged: text.includes(g.player.equippedRanged.name),
+        damage: text.includes('Damage'),
+        speed: text.includes('Speed') || text.includes('Rate'),
+        range: text.includes('Range'),
+        arrows: text.includes('Arrows'),
+        ability: text.includes('Mend'),
+      },
+    };
+  });
+  check('I opens the inventory and pauses the game', inventory.open && inventory.paused);
+  check('the inventory lists weapons with damage, speed, range and ammo',
+    Object.values(inventory.mentions).every(Boolean),
+    Object.entries(inventory.mentions).filter(([, v]) => !v).map(([k]) => k).join(', ') || 'all present');
+  check('closing the inventory resumes the game', inventory.closed && inventory.running);
+
   await page.screenshot({ path: process.env.SHOT ?? 'screenshot.png' });
   check('no console or page errors', errors.length === 0, errors.slice(0, 2).join(' | '));
 } finally {

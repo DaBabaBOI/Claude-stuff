@@ -22,6 +22,8 @@ const STEEL = new THREE.MeshStandardMaterial({ color: 0xc9d2dc, roughness: 0.35,
 const WOOD = new THREE.MeshStandardMaterial({ color: 0x7a5230, roughness: 0.9 });
 const STRING = new THREE.MeshStandardMaterial({ color: 0xe6e2d3, roughness: 0.7 });
 const LEATHER = new THREE.MeshStandardMaterial({ color: 0x4a3524, roughness: 0.95 });
+const IRON = new THREE.MeshStandardMaterial({ color: 0x8e9299, roughness: 0.45, metalness: 0.7 });
+const IRON_DARK = new THREE.MeshStandardMaterial({ color: 0x4d5158, roughness: 0.6, metalness: 0.5 });
 
 /** Arrows: brown shaft, white head and fletching. Shared by the nocked arrow
  *  on the bow and by every arrow in flight, so they always match. */
@@ -284,6 +286,43 @@ export function createArrowBundle(count = 5) {
   tie.rotation.y = Math.PI / 2;
   tie.position.y = 0.09;
   group.add(tie);
+
+  return group;
+}
+
+/**
+ * Blockout armour: a chest plate and a helmet that sit over the existing body,
+ * slightly larger than the parts underneath so they read as worn rather than
+ * as a recolour.
+ */
+export function createArmour({ helmet = true, chest = true } = {}) {
+  const group = new THREE.Group();
+
+  if (chest) {
+    const plate = new THREE.Mesh(new THREE.CapsuleGeometry(0.28, 0.4, 4, 12), IRON);
+    plate.position.y = 1.16;
+    plate.castShadow = true;
+    group.add(plate);
+
+    const belt = new THREE.Mesh(new THREE.TorusGeometry(0.26, 0.035, 6, 12), IRON_DARK);
+    belt.rotation.x = Math.PI / 2;
+    belt.position.y = 0.86;
+    group.add(belt);
+  }
+
+  if (helmet) {
+    const cap = new THREE.Mesh(
+      new THREE.SphereGeometry(0.22, 12, 10, 0, Math.PI * 2, 0, Math.PI * 0.62),
+      IRON
+    );
+    cap.position.y = 1.79;
+    cap.castShadow = true;
+    group.add(cap);
+
+    const nasal = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.16, 0.05), IRON_DARK);
+    nasal.position.set(0, 1.74, -0.2);
+    group.add(nasal);
+  }
 
   return group;
 }

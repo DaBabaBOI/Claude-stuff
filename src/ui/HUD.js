@@ -29,6 +29,9 @@ export class HUD {
       crosshair: root.getElementById('crosshair'),
       healthbars: root.getElementById('healthbars'),
       toast: root.getElementById('toast'),
+      abilities: root.getElementById('abilities'),
+      inventory: root.getElementById('inventory'),
+      invList: root.getElementById('inv-list'),
       dead: root.getElementById('dead'),
       floaters: root.getElementById('floaters'),
     };
@@ -37,6 +40,7 @@ export class HUD {
     this.healthBars = new Map();
     this.barPool = [];
     this.toastTimer = 0;
+    this.abilitySlots = [];
     this._v = new THREE.Vector3();
   }
 
@@ -72,6 +76,8 @@ export class HUD {
     this.el.crosshair.classList.toggle('full', drawing && charge >= 1);
     this.el.crosshair.style.transform = drawing ? `scale(${1 + (1 - charge) * 0.9})` : 'scale(1)';
 
+    this.updateAbilities(state, player);
+
     this.el.meleeChip.classList.toggle('held', player.heldSlot === 'melee');
     this.el.rangedChip.classList.toggle('held', player.heldSlot === 'ranged');
     this.el.meleeChip.textContent = player.equippedMelee ? `1 ${player.equippedMelee.name}` : '1 —';
@@ -102,6 +108,140 @@ export class HUD {
       this.toastTimer -= dt;
       if (this.toastTimer <= 0) this.el.toast.classList.remove('show');
     }
+  }
+
+  /**
+   * Ability slots. The cooldown is drawn as a conic-gradient wipe over the
+   * slot, so "how long until I can heal again" is readable at a glance rather
+   * than as a number to decode mid-fight.
+   */
+  updateAbilities(state, player) {
+    if (this.abilitySlots.length === 0) {
+      for (let i = 0; i < player.abilities.length; i++) {
+        const el = document.createElement('div');
+        el.className = 'ability empty';
+        el.innerHTML = '<i class="k"></i><i class="sweep"></i><span class="label"></span>';
+        this.el.abilities.appendChild(el);
+        this.abilitySlots.push({
+          el,
+          key: el.querySelector('.k'),
+          sweep: el.querySelector('.sweep'),
+          label: el.querySelector('.label'),
+        });
+      }
+    }
+
+    const keys = ['Q', 'E', 'R'];
+    for (let i = 0; i < this.abilitySlots.length; i++) {
+      const slot = this.abilitySlots[i];
+      const ability = player.abilities[i];
+      slot.key.textContent = keys[i];
+
+      if (!ability) {
+        slot.el.classList.add('empty');
+        slot.el.classList.remove('ready');
+        slot.label.textContent = '—';
+        continue;
+      }
+
+      const progress = ability.cooldownProgress(state.time);
+      const ready = ability.canUse(state, player);
+      slot.el.classList.remove('empty');
+      slot.el.classList.toggle('ready', ready);
+      slot.label.textContent = ability.name;
+      slot.sweep.style.background = `conic-gradient(rgba(4,6,10,0.05) ${
+        progress * 360
+      }deg, rgba(4,6,10,0.78) 0deg)`;
+    }
+  }
+
+  /**
+   * Inventory: what you are carrying and the numbers behind it. Read-only for
+   * now — there is nothing to swap to yet.
+   */
+  renderInventory(state, player) {
+    const rows = [];
+    const stat = (label, value) => `<div class="inv-stat"><span>${label}</span><b>${value}</b></div>`;
+
+    const melee = player.equippedMelee;
+    if (melee) {
+      rows.push(`
+        <div class="inv-item">
+          <div class="inv-head"><span class="inv-name">${melee.name}</span>
+            <span class="inv-slot">Melee</span></div>
+          <div class="inv-stats">
+            ${stat('Damage', melee.damage)}
+            ${stat('Speed', `${melee.speed.toFixed(2)} /s`)}
+            ${stat('DPS', (melee.damage * melee.speed).toFixed(1))}
+            ${stat('Range', `${melee.range.toFixed(1)} m`)}
+            ${stat('Arc', `${melee.arcDegrees}°`)}
+          </div>
+        </div>`);
+    }
+
+    const ranged = player.equippedRanged;
+    if (ranged) {
+      rows.push(`
+        <div class="inv-item">
+          <div class="inv-head"><span class="inv-name">${ranged.name}</span>
+            <span class="inv-slot">Ranged</span></div>
+          <div class="inv-stats">
+            ${stat('Damage', `${ranged.chargedDamage(0).toFixed(1)} – ${ranged.chargedDamage(1).toFixed(1)}`)}
+            ${stat('Draw time', `${ranged.chargeTime.toFixed(2)} s`)}
+            ${stat('Rate', `${ranged.speed.toFixed(2)} /s`)}
+            ${stat('Range', `${ranged.range.toFixed(0)} m`)}
+            ${stat('Arrow speed', `${ranged.chargedVelocity(0).toFixed(0)} – ${ranged.chargedVelocity(1).toFixed(0)} m/s`)}
+            ${stat('Arrows', `${ranged.ammo} / ${ranged.ammoCapacity}`)}
+          </div>
+        </div>`);
+    }
+
+    rows.push(`
+      <div class="inv-item">
+        <div class="inv-head"><span class="inv-name">${
+          player.equippedArmor ? player.equippedArmor.name : 'No armour'
+        }</span><span class="inv-slot">Armour</span></div>
+        ${
+          player.equippedArmor
+            ? `<div class="inv-stats">${stat('Defense', player.equippedArmor.defense)}</div>`
+            : '<p class="inv-empty">Nothing equipped. Defense 0.</p>'
+        }
+      </div>`);
+
+    const abilityRows = player.abilities
+      .map((ability, i) => {
+        const key = ['Q', 'E', 'R'][i];
+        if (!ability) return `<div class="inv-stat"><span>${key}</span><b>Empty</b></div>`;
+        return `<div class="inv-stat"><span>${key} · ${ability.name}</span><b>${
+          ability.cooldown
+        }s · ${ability.staminaCost} stam</b></div>`;
+      })
+      .join('');
+    rows.push(`
+      <div class="inv-item">
+        <div class="inv-head"><span class="inv-name">Abilities</span>
+          <span class="inv-slot">3 slots</span></div>
+        <div class="inv-stats">${abilityRows}</div>
+      </div>`);
+
+    rows.push(`
+      <div class="inv-item">
+        <div class="inv-head"><span class="inv-name">You</span>
+          <span class="inv-slot">Hero</span></div>
+        <div class="inv-stats">
+          ${stat('Health', `${Math.round(player.health)} / ${player.maxHealth}`)}
+          ${stat('Stamina', `${Math.round(player.stamina)} / ${player.maxStamina}`)}
+          ${stat('Move speed', '5.4 m/s')}
+          ${stat('Defense', player.defense)}
+        </div>
+      </div>`);
+
+    this.el.invList.innerHTML = rows.join('');
+  }
+
+  setInventoryOpen(open, state, player) {
+    this.el.inventory.classList.toggle('show', open);
+    if (open) this.renderInventory(state, player);
   }
 
   /** Brief centred message — mute state, mode changes. */

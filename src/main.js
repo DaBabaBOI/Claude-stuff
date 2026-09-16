@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { GameState } from './GameState.js';
 import { Player } from './entities/Player.js';
 import { Enemy } from './entities/Enemy.js';
-import { Zombie } from './entities/Zombie.js';
+import { Zombie, ZOMBIE_RANKS, rollRank } from './entities/Zombie.js';
 import { Skeleton } from './entities/Skeleton.js';
 import { ArrowBundle } from './entities/ArrowBundle.js';
 import { ProjectileSystem } from './combat/ProjectileSystem.js';
@@ -11,6 +11,7 @@ import { InputManager } from './systems/InputManager.js';
 import { CameraController, VIEW_FIRST_PERSON, VIEW_TOP_DOWN } from './systems/CameraController.js';
 import { HUD } from './ui/HUD.js';
 import { AudioManager } from './systems/AudioManager.js';
+import { Mend } from './abilities/Mend.js';
 
 const MAX_DELTA = 1 / 20; // never simulate more than a 50 ms step
 
@@ -69,6 +70,7 @@ const projectiles = new ProjectileSystem(scene);
 const player = new Player({ scene, projectileSystem: projectiles });
 player.equipMelee(createMelee('sword'));
 player.equipRanged(createRanged('bow'));
+player.abilities[0] = new Mend();
 state.player = player;
 
 // The dummy stays: it is the thing you tune weapon feel against.
@@ -94,8 +96,16 @@ function spawnWave() {
   const zombies = WAVE_SIZE + step;
   const skeletons = 1 + step;
 
+  // Ranks lean heavier the longer the run goes on.
+  const progress = Math.min(1, state.time / 180);
   for (let i = 0; i < zombies; i++) {
-    state.enemies.push(new Zombie({ scene, position: ringPosition(12 + Math.random() * 5) }));
+    state.enemies.push(
+      new Zombie({
+        scene,
+        position: ringPosition(12 + Math.random() * 5),
+        rank: rollRank(progress),
+      })
+    );
   }
   // Archers start further out — their job is to punish standing still.
   for (let i = 0; i < skeletons; i++) {
@@ -214,7 +224,9 @@ function handleActions() {
   if (input.justPressed('toggle-view')) {
     setView(firstPerson ? VIEW_TOP_DOWN : VIEW_FIRST_PERSON);
   }
-  if (input.justPressed('reload')) player.reload(state);
+  for (let slot = 0; slot < 3; slot++) {
+    if (input.justPressed(`ability-${slot + 1}`)) player.useAbility(slot, state);
+  }
   if (input.justPressed('hold-melee')) player.setHeld('melee');
   if (input.justPressed('hold-ranged')) player.setHeld('ranged');
   if (input.justPressed('mute')) hud.showToast(audio.toggleMute() ? 'Sound off' : 'Sound on');
@@ -241,6 +253,15 @@ function resetScene() {
   if (!cameraController.isFirstPerson) cameraController.snapTo(player.position);
 }
 
+let inventoryOpen = false;
+
+function toggleInventory() {
+  inventoryOpen = !inventoryOpen;
+  state.paused = inventoryOpen;
+  hud.setInventoryOpen(inventoryOpen, state, player);
+  if (inventoryOpen) document.exitPointerLock?.();
+}
+
 function tick() {
   requestAnimationFrame(tick);
 
@@ -249,8 +270,12 @@ function tick() {
   state.time += dt;
   state.frame += 1;
 
+  // Input runs even while paused, or the key that opened the inventory could
+  // never close it again.
+  input.update(camera, player.position);
+  if (input.justPressed('inventory')) toggleInventory();
+
   if (!state.paused) {
-    input.update(camera, player.position);
     handleActions();
 
     player.update(dt, state, input);
@@ -288,7 +313,14 @@ tick();
 // Harmless in normal play, and handy in the console while tuning feel.
 window.__game = {
   state, player, input, projectiles, scene, camera, cameraController, hud,
-  resetScene, setView, spawnWave, spawnArrowBundle, audio,
+  resetScene, setView, spawnWave, spawnArrowBundle, audio, toggleInventory, rollRank,
+  /** Test hook: drop a zombie of a named rank at a spot. */
+  spawnRankedZombie(rankId, { x, z }) {
+    const rank = ZOMBIE_RANKS.find((r) => r.id === rankId) ?? ZOMBIE_RANKS[0];
+    const zombie = new Zombie({ scene, position: new THREE.Vector3(x, 0, z), rank });
+    state.enemies.push(zombie);
+    return zombie;
+  },
   clearZombies() {
     for (let i = state.enemies.length - 1; i >= 0; i--) {
       if (state.enemies[i].isZombie || state.enemies[i].isSkeleton) {

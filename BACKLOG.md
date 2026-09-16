@@ -7,32 +7,31 @@ concerns at the top of each section.
 
 ## Known issues — fix these
 
-### Arms and the bow animation *(raised after play testing)*
+### Arms and the bow animation
 
-The arms are wrong and the bow animation is approximate. Specifics:
+**Elbows are in.** Each arm is now shoulder → upper arm (0.37 m) → elbow →
+forearm (0.33 m) → hand, and the bow poses place both hands by two-bone IK
+instead of hand-solved angles. Measured in the acceptance suite: hands land
+within 2 cm of their targets, draw elbow bends to 78°, bow elbow stays at 19°.
 
-- **No elbows.** Each arm is one rigid cylinder from shoulder to hand, so every
-  pose is "point the whole arm at a thing". A drawn bow needs a bent draw arm
-  with the elbow up and back; right now the forearm and upper arm are the same
-  straight line, which is why the draw reads as a stiff reach across the chest.
-  Fix: split `shoulderL/R` into `upperArm -> elbow -> forearm` in
-  `HumanoidRig.js` and drive them with two-bone IK from a hand target. The hand
-  targets are already computed in body space (see the comment above
-  `targetArmLX` in the `draw-ranged` branch) so the IK has something to aim at.
-- **Bow-arm wrist is locked.** The bow hangs off `handSocket` with a single
-  grip tilt, so it cannot roll with the shot. A wrist node under the hand
-  socket would let the bow cant independently of the arm.
-- **Draw pose is solved for exactly two points** (bow grip at rest, anchor at
-  full draw) and linearly interpolated between them. The hand therefore travels
-  in a straight line rather than an arc, and the string's V is symmetrical when
-  a real draw is not.
-- **No release recoil on the bow arm.** The loose only animates the draw hand;
-  the bow itself should kick forward and settle.
+Still wrong or missing:
+
+- **The bow-arm wrist is still locked.** The bow hangs off `handSocket` with a
+  fixed roll, so it cannot rotate independently of the forearm. A wrist node
+  under the hand socket would let the bow cant with the shot.
+- **The draw path is a straight line.** The IK targets lerp between two points
+  (hand beside the bow, hand at the anchor), so the hand travels straight
+  instead of arcing the way a real draw does.
+- **No release recoil.** The loose only animates the draw hand; the bow itself
+  should kick forward and settle.
+- **Melee is still FK.** The slash sets shoulder and elbow angles directly. It
+  reads fine, but a hand target through the cut would let the blade follow a
+  proper arc and make weapon length matter to the animation.
 - **Sword grip tilt** is a single damped number (`GRIP_CARRY` / `GRIP_SLASH`).
-  It works, but a real transition would rotate through the wrist rather than
-  snapping the whole prop.
+  A real transition would rotate through the wrist rather than the whole prop.
 - **Shared rig for every character.** A zombie's shamble and a skeleton's stance
-  are the same poses in different colours. They need their own idle and walk.
+  are the same poses in different colours. They need their own idle and walk —
+  ranks now differ in kit, but they all still move identically.
 
 ### Smaller
 
@@ -71,6 +70,12 @@ Still to do:
 
 ---
 
+## Inventory
+
+The panel is read-only: it shows what you carry and the numbers behind it, and
+nothing more. Wants: swapping between carried weapons, comparing two items side
+by side, and showing the upgrade level once milestone 3 exists.
+
 ## Milestones not started
 
 From the original build spec, in order:
@@ -79,6 +84,6 @@ From the original build spec, in order:
 | --- | --- |
 | 2. Full weapon roster (scythe, daggers, shortbow, crossbow) | `weapons.config.js` — add stat entries; the classes already carry every field, including `chargeTime: 0` for a crossbow's instant trigger |
 | 3. Armour + upgrades | `Player.equippedArmor` with `defense` / `staminaRegen` / `moveSpeedModifier` reading through it; `Weapon.level` and the `damage`/`speed` getters are where the curve goes |
-| 4. Three abilities | `Player.abilities[3]` — three independent empty slots |
+| 4. Three abilities | **Slot 1 is Mend (heal, `Q`)**, built on `Ability` in `src/abilities/`. Slots 2 and 3 are empty — dash strike and volley from the spec are the natural fits |
 | 5. HUD polish | Cooldown sweeps, hit-stop, screen shake. `CameraController` owns the camera transform |
-| 6. More enemies + a real dungeon room | `Zombie.js` and `Skeleton.js` are the templates. The arena in `main.js` is still one flat box |
+| 6. More enemies + a real dungeon room | `Zombie.js` and `Skeleton.js` are the templates, and `ZOMBIE_RANKS` is the pattern for kitted variants. The arena in `main.js` is still one flat box |

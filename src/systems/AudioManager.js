@@ -181,6 +181,11 @@ export class AudioManager {
         this.tone({ type: 'triangle', from: 990, to: 1320, duration: 0.12, gain: 0.16, delay: 0.07 });
         break;
 
+      case 'heal':
+        this.tone({ type: 'sine', from: 430, to: 700, duration: 0.3, gain: 0.3 });
+        this.tone({ type: 'sine', from: 650, to: 1050, duration: 0.35, gain: 0.16, delay: 0.09 });
+        break;
+
       case 'wave':
         this.tone({ type: 'square', from: 180, to: 178, duration: 0.18, gain: 0.2 });
         this.tone({ type: 'square', from: 135, to: 133, duration: 0.34, gain: 0.22, delay: 0.19 });

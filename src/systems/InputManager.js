@@ -22,13 +22,17 @@ const KEY_BINDINGS = {
   KeyA: 'left', ArrowLeft: 'left',
   KeyD: 'right', ArrowRight: 'right',
   ShiftLeft: 'sprint', ShiftRight: 'sprint',
-  KeyR: 'reload',
+  KeyQ: 'ability-1',
+  KeyE: 'ability-2',
+  KeyR: 'ability-3',
   Digit1: 'hold-melee',
   Digit2: 'hold-ranged',
   KeyH: 'debug-hurt',
-  KeyQ: 'debug-reset',
+  KeyP: 'debug-reset',
   KeyV: 'toggle-view',
   KeyM: 'mute',
+  KeyI: 'inventory',
+  Tab: 'inventory',
   Space: 'jump',
 };
 
@@ -85,7 +89,7 @@ export class InputManager {
       if (!action) return;
       if (!this.down.has(action)) this._queued.add(action);
       this.down.add(action);
-      if (e.code.startsWith('Arrow')) e.preventDefault();
+      if (e.code.startsWith('Arrow') || e.code === 'Tab') e.preventDefault();
     });
     window.addEventListener('keyup', (e) => {
       const action = KEY_BINDINGS[e.code];
@@ -230,7 +234,7 @@ export class InputManager {
     const pad = navigator.getGamepads()[this.gamepadIndex];
     if (!pad) return null;
     const dz = (v) => (Math.abs(v) < 0.18 ? 0 : v);
-    const owns = new Set(['melee', 'ranged', 'sprint', 'reload']);
+    const owns = new Set(['melee', 'ranged', 'sprint', 'ability-1']);
     return {
       moveX: dz(pad.axes[0] ?? 0),
       moveZ: dz(pad.axes[1] ?? 0),
@@ -241,7 +245,7 @@ export class InputManager {
         melee: Boolean(pad.buttons[7]?.pressed || pad.buttons[2]?.pressed),
         ranged: Boolean(pad.buttons[5]?.pressed || pad.buttons[3]?.pressed),
         sprint: Boolean(pad.buttons[10]?.pressed),
-        reload: Boolean(pad.buttons[1]?.pressed),
+        'ability-1': Boolean(pad.buttons[1]?.pressed),
       },
     };
   }
