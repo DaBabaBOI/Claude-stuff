@@ -33,6 +33,7 @@ export const RIG_STATES = /** @type {const} */ ([
   'walk',
   'attack-melee',
   'attack-claw',
+  'draw-ranged',
   'attack-ranged',
   'hit',
   'death',
@@ -179,6 +180,7 @@ export class HumanoidRig {
       moveSpeed01 = 0,
       attackProgress = 0,
       attackKind = 'sword',
+      drawAmount = 0,
       hitProgress = 1,
       deathProgress = 0,
     } = params;
@@ -256,6 +258,20 @@ export class HumanoidRig {
         targetArmRZ = lerp(-0.35, -0.15, u);
         lean = lerp(-0.25, 0.3, u);
       }
+    } else if (state === 'draw-ranged') {
+      // Held pose while the string is being pulled: bow arm out, draw hand
+      // travelling back to the ear as `drawAmount` climbs. This is the whole
+      // tell for a charged shot — yours and a skeleton's alike.
+      targetGrip = GRIP_BOW;
+      targetArmRX = 1.45;
+      targetArmRZ = -0.05;
+      targetArmRY = -0.12;
+      // The draw hand travels BACK to the ear as the string is pulled. Moving
+      // it forward instead is the classic backwards-bow mistake: it reads as
+      // pushing the string away from you.
+      targetArmLX = lerp(1.4, 0.4, drawAmount);
+      targetArmLZ = lerp(-0.15, -0.75, drawAmount);
+      twist = lerp(0.1, 0.34, drawAmount);
     } else if (state === 'attack-ranged') {
       const p = clamp(attackProgress, 0, 1);
       // Bow arm extended FORWARD (positive rotation.x); the draw hand snaps
@@ -265,18 +281,18 @@ export class HumanoidRig {
       targetArmRZ = -0.05;
       targetArmRY = -0.12;
       if (p < 0.3) {
-        const u = p / 0.3;                     // release kick
-        targetArmLX = lerp(1.1, 0.6, u);
-        targetArmLZ = lerp(-0.55, -0.3, u);
+        const u = p / 0.3;                     // follow-through past the ear
+        targetArmLX = lerp(0.4, 0.15, u);
+        targetArmLZ = lerp(-0.75, -0.85, u);
       } else {
-        const u = easeOut((p - 0.3) / 0.7);    // re-draw for the next shot
-        targetArmLX = lerp(0.6, 1.1, u);
-        targetArmLZ = lerp(-0.3, -0.55, u);
+        const u = easeOut((p - 0.3) / 0.7);    // hand comes back to the bow
+        targetArmLX = lerp(0.15, 1.4, u);
+        targetArmLZ = lerp(-0.85, -0.15, u);
       }
       twist = 0.22;
     }
 
-    const smoothing = state.startsWith('attack') ? 0.0005 : 0.002;
+    const smoothing = state.startsWith('attack') || state === 'draw-ranged' ? 0.0005 : 0.002;
     this.hipL.rotation.x = damp(this.hipL.rotation.x, targetLegL, smoothing, dt);
     this.hipR.rotation.x = damp(this.hipR.rotation.x, targetLegR, smoothing, dt);
     this.shoulderL.rotation.x = damp(this.shoulderL.rotation.x, targetArmLX, smoothing, dt);

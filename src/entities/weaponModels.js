@@ -53,25 +53,45 @@ function createSword() {
 
 function createBow() {
   const group = new THREE.Group();
-  // Inner group carries the art's own orientation, so a socket is free to
-  // rotate the outer group without erasing it. Canted rather than upright:
-  // from a locked top-down camera an upright bow reads as a single line.
+
+  /**
+   * Bow orientation, worked out in SOCKET space rather than by eye.
+   *
+   * The hand socket hangs off the end of the arm, so with the bow arm extended
+   * the socket's axes land like this:
+   *
+   *     socket -Y  ->  the way the arrow flies (straight down the arm)
+   *     socket +Y  ->  back toward the archer
+   *     socket ±Z  ->  up and down (the limb axis)
+   *
+   * So: limbs span Z, the riser bulges along -Y (away from the archer), and the
+   * string is a chord on the +Y side, nearest the face. Building it the other
+   * way round is what made the bow read backwards — the string ended up out
+   * front, pointing at the target.
+   *
+   *            ╭── limb tip (+Z)
+   *       riser│ ╲
+   *   -Y ◀ ────●  │ string          archer ▶ +Y
+   *            │ ╱
+   *            ╰── limb tip (-Z)
+   */
   const art = new THREE.Group();
-  art.rotation.x = -0.6;
-  art.position.y = -0.1; // riser sits just past the grip, along -Y
+  art.position.y = 0.42;  // grip sits at the riser's middle, i.e. the socket
+  art.rotation.y = 0.45;  // canted, so it is not a single line from top-down
   group.add(art);
 
-  const bow = new THREE.Mesh(
-    new THREE.TorusGeometry(0.42, 0.028, 6, 14, Math.PI * 0.9),
+  const riser = new THREE.Mesh(
+    new THREE.TorusGeometry(0.42, 0.028, 6, 16, Math.PI * 0.9),
     WOOD
   );
-  bow.rotation.z = Math.PI * 0.55;
-  bow.rotation.y = Math.PI / 2;
-  bow.castShadow = true;
-  art.add(bow);
+  riser.rotation.y = Math.PI / 2; // ring plane XY -> ZY
+  riser.rotation.x = Math.PI;     // arc midpoint to -Y, tips toward +-Z
+  riser.castShadow = true;
+  art.add(riser);
 
-  const cord = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.72, 4), STRING);
-  cord.position.z = 0.12;
+  const cord = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.83, 4), STRING);
+  cord.rotation.x = Math.PI / 2;  // lie along the limb axis
+  cord.position.y = -0.065;       // the chord between the two limb tips
   art.add(cord);
 
   return group;

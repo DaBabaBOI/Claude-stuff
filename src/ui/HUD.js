@@ -23,10 +23,20 @@ export class HUD {
       dummyFill: root.getElementById('dummy-fill'),
       dummyText: root.getElementById('dummy-text'),
       waveText: root.getElementById('wave-text'),
+      drawRow: root.getElementById('draw-row'),
+      drawFill: root.getElementById('draw-fill'),
+      drawText: root.getElementById('draw-text'),
+      crosshair: root.getElementById('crosshair'),
+      healthbars: root.getElementById('healthbars'),
+      toast: root.getElementById('toast'),
       dead: root.getElementById('dead'),
       floaters: root.getElementById('floaters'),
     };
     this.floaters = [];
+    /** Pool of reusable health-bar elements, keyed by the enemy they track. */
+    this.healthBars = new Map();
+    this.barPool = [];
+    this.toastTimer = 0;
     this._v = new THREE.Vector3();
   }
 
@@ -48,6 +58,20 @@ export class HUD {
       this.el.ammoRow.hidden = true;
     }
 
+    // Draw meter: only on screen while the string is actually pulled.
+    const drawing = Boolean(player.equippedRanged?.drawing);
+    const charge = player.drawStrength;
+    this.el.drawRow.classList.toggle('drawing', drawing);
+    this.el.drawRow.classList.toggle('full', charge >= 1);
+    if (drawing) {
+      this.el.drawFill.style.width = `${charge * 100}%`;
+      this.el.drawText.textContent = `${Math.round(charge * 100)}%  ·  ${Math.round(
+        player.equippedRanged.chargedDamage(charge)
+      )} dmg`;
+    }
+    this.el.crosshair.classList.toggle('full', drawing && charge >= 1);
+    this.el.crosshair.style.transform = drawing ? `scale(${1 + (1 - charge) * 0.9})` : 'scale(1)';
+
     this.el.meleeChip.classList.toggle('held', player.heldSlot === 'melee');
     this.el.rangedChip.classList.toggle('held', player.heldSlot === 'ranged');
     this.el.meleeChip.textContent = player.equippedMelee ? `1 ${player.equippedMelee.name}` : '1 —';
@@ -56,7 +80,11 @@ export class HUD {
     this.el.dead.classList.toggle('show', player.dead);
 
     const zombies = state.enemies.filter((e) => e.isZombie && !e.dead).length;
-    this.el.waveText.textContent = zombies === 0 ? 'Next wave incoming' : `Zombies: ${zombies}`;
+    const skeletons = state.enemies.filter((e) => e.isSkeleton && !e.dead).length;
+    this.el.waveText.textContent =
+      zombies + skeletons === 0
+        ? 'Next wave incoming'
+        : `Zombies: ${zombies}   ·   Skeletons: ${skeletons}`;
 
     const dummy = state.enemies[0];
     if (dummy) {
@@ -68,6 +96,68 @@ export class HUD {
 
     this.drainDamageEvents(state);
     this.updateFloaters(dt, camera);
+    this.updateHealthBars(state, camera);
+
+    if (this.toastTimer > 0) {
+      this.toastTimer -= dt;
+      if (this.toastTimer <= 0) this.el.toast.classList.remove('show');
+    }
+  }
+
+  /** Brief centred message — mute state, mode changes. */
+  showToast(text, seconds = 1.6) {
+    this.el.toast.textContent = text;
+    this.el.toast.classList.add('show');
+    this.toastTimer = seconds;
+  }
+
+  /**
+   * A health bar per living enemy, floating above its head.
+   *
+   * World point (x, height + 0.4, z) is projected through the camera each
+   * frame; anything behind the camera (projected z > 1) is hidden rather than
+   * drawn mirrored in front of you.
+   */
+  updateHealthBars(state, camera) {
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    const seen = new Set();
+
+    for (const enemy of state.enemies) {
+      if (enemy.dead || !(enemy.isZombie || enemy.isSkeleton)) continue;
+      seen.add(enemy);
+
+      let bar = this.healthBars.get(enemy);
+      if (!bar) {
+        const el = this.barPool.pop() ?? document.createElement('div');
+        el.className = `ehp${enemy.isSkeleton ? ' skeleton' : ''}`;
+        if (!el.firstChild) el.appendChild(document.createElement('i'));
+        this.el.healthbars.appendChild(el);
+        bar = { el, fill: el.firstChild };
+        this.healthBars.set(enemy, bar);
+      }
+
+      this._v.set(enemy.position.x, (enemy.height ?? 2) + 0.4, enemy.position.z).project(camera);
+      if (this._v.z > 1) {
+        bar.el.style.opacity = '0';
+        continue;
+      }
+      const ratio = Math.max(0, enemy.health / enemy.maxHealth);
+      bar.el.style.opacity = '1';
+      bar.el.style.transform = `translate(-50%, -50%) translate(${
+        (this._v.x * 0.5 + 0.5) * width
+      }px, ${(-this._v.y * 0.5 + 0.5) * height}px)`;
+      bar.fill.style.width = `${ratio * 100}%`;
+      bar.el.classList.toggle('hurt', ratio < 1);
+    }
+
+    // Recycle bars whose enemy died or was cleaned up.
+    for (const [enemy, bar] of this.healthBars) {
+      if (seen.has(enemy)) continue;
+      bar.el.remove();
+      this.barPool.push(bar.el);
+      this.healthBars.delete(enemy);
+    }
   }
 
   drainDamageEvents(state) {

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { HumanoidRig } from './HumanoidRig.js';
 
-const HIT_REACTION_TIME = 0.3;
+const HIT_REACTION_TIME = 0.18;
 
 /**
  * Enemy — for Phase 1 this is just the test dummy: it has health, reacts to
@@ -19,6 +19,7 @@ export class Enemy {
     this.respawnDelay = respawnDelay;
 
     this.isZombie = false;
+    this.isSkeleton = false;
     this.dead = false;
     this.deathTimer = 0;
     this.hitTimer = HIT_REACTION_TIME;
@@ -38,6 +39,7 @@ export class Enemy {
     this.hitTimer = 0;
     this.rig.triggerFlash(1);
     state.pushDamageEvent({ x: this.position.x, y: 2.0, z: this.position.z }, applied, kind);
+    state.pushEvent('hit', { amount: applied, kind });
 
     // A nudge away from the attacker — enough to read as an impact.
     const dx = this.position.x - fromX;
@@ -48,6 +50,7 @@ export class Enemy {
     if (this.health === 0) {
       this.dead = true;
       this.deathTimer = 0;
+      state.pushEvent('enemy-death');
     }
   }
 

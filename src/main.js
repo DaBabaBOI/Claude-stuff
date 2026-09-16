@@ -3,11 +3,13 @@ import { GameState } from './GameState.js';
 import { Player } from './entities/Player.js';
 import { Enemy } from './entities/Enemy.js';
 import { Zombie } from './entities/Zombie.js';
+import { Skeleton } from './entities/Skeleton.js';
 import { ProjectileSystem } from './combat/ProjectileSystem.js';
 import { createMelee, createRanged } from './combat/weapons.config.js';
 import { InputManager } from './systems/InputManager.js';
 import { CameraController, VIEW_FIRST_PERSON, VIEW_TOP_DOWN } from './systems/CameraController.js';
 import { HUD } from './ui/HUD.js';
+import { AudioManager } from './systems/AudioManager.js';
 
 const MAX_DELTA = 1 / 20; // never simulate more than a 50 ms step
 
@@ -77,28 +79,43 @@ const WAVE_SIZE = 4;
 const WAVE_DELAY = 6;
 let nextWaveAt = 4;
 
+function ringPosition(radius) {
+  const angle = Math.random() * Math.PI * 2;
+  return new THREE.Vector3(
+    THREE.MathUtils.clamp(player.position.x + Math.cos(angle) * radius, -18, 18),
+    0,
+    THREE.MathUtils.clamp(player.position.z + Math.sin(angle) * radius, -18, 18)
+  );
+}
+
 function spawnWave() {
-  const count = WAVE_SIZE + Math.floor(state.time / 45); // slowly gets busier
-  for (let i = 0; i < count; i++) {
-    // Ring spawn, well clear of the player.
-    const angle = Math.random() * Math.PI * 2;
-    const radius = 12 + Math.random() * 5;
-    const position = new THREE.Vector3(
-      THREE.MathUtils.clamp(player.position.x + Math.cos(angle) * radius, -18, 18),
-      0,
-      THREE.MathUtils.clamp(player.position.z + Math.sin(angle) * radius, -18, 18)
+  const step = Math.floor(state.time / 45); // slowly gets busier
+  const zombies = WAVE_SIZE + step;
+  const skeletons = 1 + step;
+
+  for (let i = 0; i < zombies; i++) {
+    state.enemies.push(new Zombie({ scene, position: ringPosition(12 + Math.random() * 5) }));
+  }
+  // Archers start further out — their job is to punish standing still.
+  for (let i = 0; i < skeletons; i++) {
+    state.enemies.push(
+      new Skeleton({
+        scene,
+        projectileSystem: projectiles,
+        position: ringPosition(15 + Math.random() * 4),
+      })
     );
-    state.enemies.push(new Zombie({ scene, position }));
   }
 }
 
 function updateWaves(dt) {
-  const alive = state.enemies.filter((e) => e instanceof Zombie && !e.dead).length;
+  const isSpawned = (e) => e.isZombie || e.isSkeleton;
+  const alive = state.enemies.filter((e) => isSpawned(e) && !e.dead).length;
 
   // Clean up corpses once they have finished falling over.
   for (let i = state.enemies.length - 1; i >= 0; i--) {
     const enemy = state.enemies[i];
-    if (enemy instanceof Zombie && enemy.dead && enemy.deathTimer > enemy.removeAfter) {
+    if (isSpawned(enemy) && enemy.dead && enemy.deathTimer > enemy.removeAfter) {
       scene.remove(enemy.rig.root);
       state.enemies.splice(i, 1);
     }
@@ -106,6 +123,7 @@ function updateWaves(dt) {
 
   if (state.wavesEnabled && alive === 0 && state.time >= nextWaveAt) {
     spawnWave();
+    state.pushEvent('wave');
     nextWaveAt = state.time + WAVE_DELAY;
   }
 }
@@ -114,6 +132,8 @@ const input = new InputManager(renderer.domElement);
 const cameraController = new CameraController(camera);
 cameraController.snapTo(player.position);
 const hud = new HUD(document);
+const audio = new AudioManager();
+audio.attachUnlock(window);
 
 // --- Loop ------------------------------------------------------------------
 const clock = new THREE.Clock();
@@ -138,15 +158,21 @@ function setView(mode) {
 function handleActions() {
   const firstPerson = cameraController.isFirstPerson;
   if (input.justPressed('melee')) player.swingMelee(state);
-  if (input.justPressed('ranged')) {
+
+  // The bow is draw-and-hold: press pulls the string, release looses it.
+  if (input.justPressed('ranged')) player.drawRanged(state);
+  if (input.justReleased('ranged')) {
     player.fireRanged(state, firstPerson ? input.lookPitch : null);
   }
+  // Swinging the sword abandons a half-drawn shot.
+  if (input.justPressed('melee')) player.equippedRanged?.cancelDraw();
   if (input.justPressed('toggle-view')) {
     setView(firstPerson ? VIEW_TOP_DOWN : VIEW_FIRST_PERSON);
   }
   if (input.justPressed('reload')) player.reload(state);
   if (input.justPressed('hold-melee')) player.setHeld('melee');
   if (input.justPressed('hold-ranged')) player.setHeld('ranged');
+  if (input.justPressed('mute')) hud.showToast(audio.toggleMute() ? 'Sound off' : 'Sound on');
   if (input.justPressed('debug-hurt')) player.takeDamage(12, state);
   if (input.justPressed('debug-reset')) resetScene();
 }
@@ -155,7 +181,7 @@ function resetScene() {
   player.respawn();
   for (let i = state.enemies.length - 1; i >= 0; i--) {
     const enemy = state.enemies[i];
-    if (enemy instanceof Zombie) {
+    if (enemy.isZombie || enemy.isSkeleton) {
       scene.remove(enemy.rig.root);
       state.enemies.splice(i, 1);
     } else {
@@ -183,6 +209,7 @@ function tick() {
     for (const enemy of state.enemies) enemy.update(dt, state);
     projectiles.update(dt, state);
     updateWaves(dt);
+    audio.update(state);
 
     // In first person the hero turns with the mouse, so the movement basis has
     // to follow them every frame.
@@ -212,10 +239,10 @@ tick();
 // Harmless in normal play, and handy in the console while tuning feel.
 window.__game = {
   state, player, input, projectiles, scene, camera, cameraController, hud,
-  resetScene, setView, spawnWave,
+  resetScene, setView, spawnWave, audio,
   clearZombies() {
     for (let i = state.enemies.length - 1; i >= 0; i--) {
-      if (state.enemies[i].isZombie) {
+      if (state.enemies[i].isZombie || state.enemies[i].isSkeleton) {
         scene.remove(state.enemies[i].rig.root);
         state.enemies.splice(i, 1);
       }

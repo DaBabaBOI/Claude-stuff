@@ -72,6 +72,7 @@ export class ProjectileSystem {
   /** @param {import('../GameState.js').GameState} state */
   spawn(state, spec) {
     const mesh = this.buildMesh();
+    mesh.scale.setScalar(0.75 + 0.35 * (spec.power ?? 1));
     mesh.position.set(spec.x, spec.y, spec.z);
     this.scene.add(mesh);
 
@@ -81,7 +82,9 @@ export class ProjectileSystem {
       vx: spec.vx, vy: spec.vy ?? 0, vz: spec.vz,
       damage: spec.damage,
       life: spec.lifetime,
-      sourceId: spec.sourceId,
+      /** 'player' arrows hit enemies; 'enemy' arrows hit the player. */
+      team: spec.team ?? 'player',
+      power: spec.power ?? 1,
       stuck: false,
       stuckTimer: 0,
     };
@@ -121,8 +124,9 @@ export class ProjectileSystem {
       this.orient(p);
 
       let consumed = false;
-      for (const enemy of state.enemies) {
-        if (enemy.dead) continue;
+      const targets = p.team === 'player' ? state.enemies : [state.player];
+      for (const enemy of targets) {
+        if (!enemy || enemy.dead) continue;
         const hitRadius = enemy.radius + PROJECTILE_RADIUS;
         const { t, distSq } = closestPointOnSegmentXZ(
           enemy.position.x, enemy.position.z, prevX, prevZ, p.x, p.z
@@ -145,6 +149,7 @@ export class ProjectileSystem {
 
       // Landed: plant it in the ground for a moment instead of vanishing.
       if (p.y <= 0.05) {
+        state.pushEvent('arrow-ground');
         p.stuck = true;
         p.y = 0.05;
         p.mesh.position.y = p.y;

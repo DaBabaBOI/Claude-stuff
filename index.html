@@ -26,6 +26,10 @@
   .bar { height: 12px; border-radius: 6px; background: rgba(255,255,255,0.1); overflow: hidden; margin: 4px 0 8px; }
   .bar > i { display: block; height: 100%; width: 100%; transition: width 90ms linear; }
   #health-fill { background: linear-gradient(90deg, #d8464a, #ff7a6e); }
+  #draw-fill { background: linear-gradient(90deg, #6d7ad6, #a8e6ff); transition: none; }
+  #draw-row { display: none; }
+  #draw-row.drawing { display: block; }
+  #draw-row.full #draw-fill { background: linear-gradient(90deg, #f0a93e, #ffe08a); }
   #stamina-fill { background: linear-gradient(90deg, #35a06a, #7fe0a8); }
   #dummy-fill { background: linear-gradient(90deg, #c79b3e, #f0cd7a); }
 
@@ -39,10 +43,32 @@
 
   #floaters { position: absolute; inset: 0; }
 
+  /* Enemy health bars, projected from world space onto the screen. */
+  #healthbars { position: absolute; inset: 0; }
+  .ehp {
+    position: absolute; top: 0; left: 0; width: 54px; height: 6px; border-radius: 3px;
+    background: rgba(8, 10, 14, 0.75); border: 1px solid rgba(0,0,0,0.5);
+    overflow: hidden; will-change: transform;
+  }
+  .ehp > i { display: block; height: 100%; background: #e05a4a; }
+  .ehp.skeleton > i { background: #d9d3bd; }
+  .ehp.hurt { outline: 1px solid rgba(255,255,255,0.35); }
+
+  #toast {
+    position: absolute; left: 50%; bottom: 92px; transform: translateX(-50%);
+    padding: 7px 14px; border-radius: 999px; font-size: 12px;
+    background: rgba(12, 16, 24, 0.85); border: 1px solid rgba(255,255,255,0.12);
+    opacity: 0; transition: opacity 180ms ease;
+  }
+  #toast.show { opacity: 1; }
+
   /* Crosshair: only in first person, where there is no cursor to aim with. */
   #crosshair { position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px; display: none; }
   body.first-person #crosshair { display: block; }
   body.first-person #target { top: 56px; }
+  /* Crosshair opens as the bow draws and locks amber at a full pull. */
+  #crosshair { transition: transform 40ms linear; }
+  #crosshair.full::before, #crosshair.full::after { background: #ffd27a; }
   #crosshair::before, #crosshair::after {
     content: ""; position: absolute; background: rgba(255,255,255,0.85);
     box-shadow: 0 0 3px rgba(0,0,0,0.9);
@@ -96,6 +122,10 @@
       <div class="bar"><i id="health-fill"></i></div>
       <div class="row"><span>Stamina</span><span id="ammo-row">Ammo <b id="ammo-text">12 / 12</b></span></div>
       <div class="bar"><i id="stamina-fill"></i></div>
+      <div id="draw-row">
+        <div class="row"><span>Draw</span><span id="draw-text">0%</span></div>
+        <div class="bar"><i id="draw-fill" style="width:0"></i></div>
+      </div>
       <div class="chips">
         <div class="chip held" id="chip-melee">1 Sword</div>
         <div class="chip" id="chip-ranged">2 Bow</div>
@@ -104,13 +134,16 @@
 
     <div class="panel" id="help">
       <div><b>WASD</b> move &nbsp; <b>Shift</b> sprint</div>
-      <div><b>Mouse</b> aim &nbsp; <b>LMB</b> swing &nbsp; <b>RMB</b> shoot</div>
+      <div><b>Mouse</b> aim &nbsp; <b>LMB</b> swing</div>
+      <div><b>Hold RMB</b> draw the bow, release to shoot</div>
       <div><b>R</b> reload &nbsp; <b>1/2</b> hold weapon</div>
       <div><b>V</b> first-person / top-down</div>
-      <div><b>H</b> hurt self (test) &nbsp; <b>Q</b> reset</div>
+      <div><b>M</b> mute &nbsp; <b>H</b> hurt self (test) &nbsp; <b>Q</b> reset</div>
     </div>
 
+    <div id="healthbars"></div>
     <div id="crosshair"></div>
+    <div id="toast"></div>
     <div id="floaters"></div>
     <div id="needs-input">
       <p><b>This one needs a keyboard and mouse.</b><br />

@@ -28,6 +28,7 @@ const KEY_BINDINGS = {
   KeyH: 'debug-hurt',
   KeyQ: 'debug-reset',
   KeyV: 'toggle-view',
+  KeyM: 'mute',
   Space: 'jump',
 };
 
@@ -46,7 +47,9 @@ export class InputManager {
     this.dom = domElement;
     this.down = new Set();
     this.pressedThisFrame = new Set();
+    this.releasedThisFrame = new Set();
     this._queued = new Set();
+    this._queuedReleases = new Set();
 
     this.moveVector = { x: 0, z: 0 };
     this.aimYaw = 0;
@@ -86,9 +89,12 @@ export class InputManager {
     });
     window.addEventListener('keyup', (e) => {
       const action = KEY_BINDINGS[e.code];
-      if (action) this.down.delete(action);
+      if (action) this.release(action);
     });
-    window.addEventListener('blur', () => this.down.clear());
+    // Losing focus mid-draw must release the shot, not freeze it half-drawn.
+    window.addEventListener('blur', () => {
+      for (const action of [...this.down]) this.release(action);
+    });
 
     this.dom.addEventListener('pointermove', (e) => {
       // Deltas drive mouse-look whenever first person is active. Pointer lock
@@ -139,7 +145,7 @@ export class InputManager {
       this.skipNextLook = true;
     });
     window.addEventListener('pointerup', (e) => {
-      this.down.delete(e.button === 2 ? 'ranged' : 'melee');
+      this.release(e.button === 2 ? 'ranged' : 'melee');
     });
     this.dom.addEventListener('contextmenu', (e) => e.preventDefault());
 
@@ -149,11 +155,19 @@ export class InputManager {
 
   isDown(action) { return this.down.has(action); }
   justPressed(action) { return this.pressedThisFrame.has(action); }
+  /** True on the single frame an input was let go — how a charged shot fires. */
+  justReleased(action) { return this.releasedThisFrame.has(action); }
+
+  release(action) {
+    if (this.down.delete(action)) this._queuedReleases.add(action);
+  }
 
   /** Call once per frame, before anything reads input. */
   update(camera, playerPosition) {
     this.pressedThisFrame = this._queued;
     this._queued = new Set();
+    this.releasedThisFrame = this._queuedReleases;
+    this._queuedReleases = new Set();
 
     let x = (this.isDown('right') ? 1 : 0) - (this.isDown('left') ? 1 : 0);
     let z = (this.isDown('down') ? 1 : 0) - (this.isDown('up') ? 1 : 0);
@@ -163,7 +177,7 @@ export class InputManager {
       if (Math.abs(pad.moveX) + Math.abs(pad.moveZ) > 0) { x = pad.moveX; z = pad.moveZ; }
       for (const [action, pressed] of Object.entries(pad.buttons)) {
         if (pressed && !this.down.has(action)) { this._queued.add(action); this.down.add(action); }
-        else if (!pressed && pad.owns.has(action)) this.down.delete(action);
+        else if (!pressed && pad.owns.has(action)) this.release(action);
       }
     }
 

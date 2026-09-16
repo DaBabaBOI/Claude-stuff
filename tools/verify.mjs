@@ -301,6 +301,226 @@ try {
   check('first-person W walks where you look', fpMove.x < -0.5 && Math.abs(fpMove.z) < 1.2,
     `moved to x=${fpMove.x.toFixed(2)}, z=${fpMove.z.toFixed(2)}`);
 
+  // --- 9. charged bow --------------------------------------------------------
+  await quiet();
+  const charging = await page.evaluate(async () => {
+    const g = window.__game;
+    const bow = g.player.equippedRanged;
+    bow.nextReadyAt = 0;
+    bow.ammo = bow.ammoCapacity;
+    const started = g.player.drawRanged(g.state);
+    await new Promise((r) => requestAnimationFrame(r));
+    const early = g.player.drawStrength;
+    return { started, early, chargeTime: bow.chargeTime };
+  });
+  check('holding the bow starts a draw', charging.started && charging.chargeTime > 0,
+    `full draw in ${charging.chargeTime}s`);
+  check('draw builds while held',
+    await waitFor(() => window.__game.player.drawStrength >= 0.99), 'reached 100%');
+
+  const power = await page.evaluate(() => {
+    const bow = window.__game.player.equippedRanged;
+    return {
+      tapDamage: bow.chargedDamage(0),
+      fullDamage: bow.chargedDamage(1),
+      tapSpeed: bow.chargedVelocity(0),
+      fullSpeed: bow.chargedVelocity(1),
+    };
+  });
+  check('a full draw hits harder than a snap shot', power.fullDamage > power.tapDamage * 2,
+    `${power.tapDamage.toFixed(1)} -> ${power.fullDamage.toFixed(1)} damage`);
+  check('a full draw flies faster and flatter', power.fullSpeed > power.tapSpeed,
+    `${power.tapSpeed.toFixed(0)} -> ${power.fullSpeed.toFixed(0)} m/s`);
+
+  const shots = await page.evaluate(async () => {
+    const g = window.__game;
+    const dummy = g.state.enemies[0];
+    const fire = async (charge) => {
+      g.player.position.set(dummy.position.x, 0, dummy.position.z + 6);
+      g.player.facing = 0;
+      const bow = g.player.equippedRanged;
+      bow.nextReadyAt = 0;
+      bow.ammo = bow.ammoCapacity;
+      bow.drawing = true;
+      bow.charge = charge;
+      const before = dummy.health;
+      g.player.fireRanged(g.state);
+      for (let i = 0; i < 90 && dummy.health === before; i++) {
+        await new Promise((r) => requestAnimationFrame(r));
+      }
+      return before - dummy.health;
+    };
+    dummy.health = dummy.maxHealth;
+    const tap = await fire(0);
+    const full = await fire(1);
+    return { tap, full };
+  });
+  check('a charged arrow actually lands harder', shots.full > shots.tap && shots.tap > 0,
+    `tap ${shots.tap} vs full draw ${shots.full}`);
+
+  // --- 10. skeleton archers --------------------------------------------------
+  await page.evaluate(() => {
+    const g = window.__game;
+    g.clearZombies();
+    g.projectiles.clear(g.state);
+    g.player.position.set(0, 0, 0);
+    g.player.health = g.player.maxHealth;
+    g.player.dead = false;
+  });
+
+  await page.evaluate(() => {
+    const g = window.__game;
+    g.spawnWave();
+    // Keep only the archers, so nothing else can be what hits the player.
+    for (let i = g.state.enemies.length - 1; i >= 0; i--) {
+      if (g.state.enemies[i].isZombie) {
+        g.scene.remove(g.state.enemies[i].rig.root);
+        g.state.enemies.splice(i, 1);
+      }
+    }
+    const sk = g.state.enemies.find((e) => e.isSkeleton);
+    sk.position.set(0, 0, -9);
+    sk.__states = [];
+    const watch = () => {
+      if (!sk.__states.includes(sk.state)) sk.__states.push(sk.state);
+      if (!sk.dead) requestAnimationFrame(watch);
+    };
+    watch();
+  });
+
+  const drew = await waitFor(() => {
+    const sk = window.__game.state.enemies.find((e) => e.isSkeleton);
+    return sk && sk.__states.includes('draw');
+  });
+  check('skeleton draws its bow', drew);
+
+  const arrowInAir = await waitFor(() =>
+    window.__game.state.projectiles.some((p) => p.team === 'enemy'));
+  check('skeleton looses an enemy arrow', arrowInAir);
+
+  const hitByArrow = await waitFor(() => window.__game.player.health < window.__game.player.maxHealth);
+  const archerState = await page.evaluate(() => {
+    const sk = window.__game.state.enemies.find((e) => e.isSkeleton);
+    return {
+      health: window.__game.player.health,
+      distance: Math.hypot(sk.position.x, sk.position.z),
+      minRange: sk.minRange,
+      states: sk.__states,
+    };
+  });
+  check('skeleton arrow damages the player', hitByArrow, `player health ${archerState.health}`);
+  check('skeleton keeps its distance instead of closing',
+    archerState.distance > archerState.minRange * 0.8,
+    `held ${archerState.distance.toFixed(1)} m (min range ${archerState.minRange})`);
+
+  const friendly = await page.evaluate(async () => {
+    const g = window.__game;
+    const sk = g.state.enemies.find((e) => e.isSkeleton && !e.dead);
+    const dummy = g.state.enemies[0];
+    dummy.health = dummy.maxHealth;
+    dummy.position.set(sk.position.x, 0, sk.position.z - 3);
+    // An enemy arrow fired straight through the dummy must not hurt it.
+    g.projectiles.spawn(g.state, {
+      x: sk.position.x, y: 1.3, z: sk.position.z - 1,
+      vx: 0, vy: 0, vz: -18, damage: 50, lifetime: 1, team: 'enemy',
+    });
+    for (let i = 0; i < 40; i++) await new Promise((r) => requestAnimationFrame(r));
+    return { dummyHealth: dummy.health, dummyMax: dummy.maxHealth };
+  });
+  check('enemy arrows do not hit other enemies',
+    friendly.dummyHealth === friendly.dummyMax, `dummy ${friendly.dummyHealth}/${friendly.dummyMax}`);
+
+  // --- 11. health bars + directional speed -----------------------------------
+  const bars = await page.evaluate(() => ({
+    bars: document.querySelectorAll('.ehp').length,
+    enemies: window.__game.state.enemies.filter((e) => (e.isZombie || e.isSkeleton) && !e.dead).length,
+  }));
+  check('every living enemy has a health bar', bars.bars >= bars.enemies && bars.enemies > 0,
+    `${bars.bars} bars for ${bars.enemies} enemies`);
+
+  const speeds = await page.evaluate(() => {
+    const p = window.__game.player;
+    p.facing = 0; // facing -Z
+    return {
+      forward: p.directionalSpeedFactor({ x: 0, z: -1 }),
+      strafe: p.directionalSpeedFactor({ x: 1, z: 0 }),
+      backward: p.directionalSpeedFactor({ x: 0, z: 1 }),
+    };
+  });
+  check('forward is faster than strafing, strafing faster than backpedalling',
+    speeds.forward > speeds.strafe && speeds.strafe > speeds.backward,
+    `${speeds.forward.toFixed(2)} / ${speeds.strafe.toFixed(2)} / ${speeds.backward.toFixed(2)}`);
+
+  // A zombie must close ground DURING its windup, not freeze and swing at
+  // where you used to be.
+  await page.evaluate(() => {
+    const g = window.__game;
+    g.clearZombies();
+    g.player.position.set(0, 0, 0);
+    g.player.health = g.player.maxHealth;
+    g.spawnWave();
+    for (let i = g.state.enemies.length - 1; i >= 0; i--) {
+      if (g.state.enemies[i].isSkeleton) {
+        g.scene.remove(g.state.enemies[i].rig.root);
+        g.state.enemies.splice(i, 1);
+      }
+    }
+    const z = g.state.enemies.find((e) => e.isZombie);
+    z.position.set(0, 0, -3);
+    z.__windupTravel = 0;
+    let last = null;
+    const watch = () => {
+      if (z.state === 'windup') {
+        if (last) z.__windupTravel += Math.hypot(z.position.x - last.x, z.position.z - last.z);
+        last = { x: z.position.x, z: z.position.z };
+      } else {
+        last = null;
+      }
+      if (!z.dead) requestAnimationFrame(watch);
+    };
+    watch();
+  });
+  await waitFor(() => {
+    const z = window.__game.state.enemies.find((e) => e.isZombie);
+    return z && z.__windupTravel > 0.15;
+  });
+  const mobility = await page.evaluate(() => {
+    const z = window.__game.state.enemies.find((e) => e.isZombie);
+    return { travel: z.__windupTravel, factor: z.windupSpeedFactor };
+  });
+  check('zombies keep closing in during their windup', mobility.travel > 0.15,
+    `moved ${mobility.travel.toFixed(2)} m mid-windup at x${mobility.factor} speed`);
+
+  // --- 12. audio plumbing ----------------------------------------------------
+  // Headless has no audio device, so this checks that gameplay actually raises
+  // cues and the audio system drains them — not that anything is audible.
+  const cues = await page.evaluate(async () => {
+    const g = window.__game;
+    const heard = [];
+    const original = g.audio.play.bind(g.audio);
+    g.audio.play = (type, opts) => { heard.push(type); return original(type, opts); };
+
+    g.player.equippedMelee.nextReadyAt = 0;
+    g.player.swingMelee(g.state);
+    await new Promise((r) => requestAnimationFrame(r));
+
+    g.player.equippedRanged.nextReadyAt = 0;
+    g.player.drawRanged(g.state);
+    await new Promise((r) => requestAnimationFrame(r));
+    g.player.fireRanged(g.state);
+    await new Promise((r) => requestAnimationFrame(r));
+
+    g.player.takeDamage(5, g.state);
+    await new Promise((r) => requestAnimationFrame(r));
+
+    g.audio.play = original;
+    return { heard, queueDrained: g.state.events.length };
+  });
+  check('gameplay raises audio cues',
+    ['swing', 'bow-draw', 'bow-release', 'player-hurt'].every((c) => cues.heard.includes(c)),
+    cues.heard.join(', '));
+  check('the audio system drains the event queue each frame', cues.queueDrained === 0);
+
   await page.screenshot({ path: process.env.SHOT ?? 'screenshot.png' });
   check('no console or page errors', errors.length === 0, errors.slice(0, 2).join(' | '));
 } finally {

@@ -29,12 +29,24 @@ export class GameState {
      */
     this.damageEvents = [];
 
+    /**
+     * Gameplay events for this frame: the audio system drains them, exactly
+     * like the HUD drains damageEvents. Entities stay ignorant of sound.
+     * @type {{type: string, [key: string]: any}[]}
+     */
+    this.events = [];
+
     /** Arena bounds used for the cheap AABB wall collision. */
     this.arena = { minX: -19, maxX: 19, minZ: -19, maxZ: 19 };
 
     this.paused = false;
     /** Set false for a quiet sandbox: no new zombie waves spawn. */
     this.wavesEnabled = true;
+  }
+
+  /** Queue a gameplay event for this frame (sound, and later VFX). */
+  pushEvent(type, data = {}) {
+    this.events.push({ type, ...data });
   }
 
   /** Queue a floating damage number at a world position. */

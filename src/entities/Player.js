@@ -9,7 +9,15 @@ const SPRINT_STAMINA_COST = 24; // per second
 const STAMINA_REGEN = 16;       // per second
 const STAMINA_REGEN_DELAY = 0.5;
 const ATTACK_MOVE_PENALTY = 0.35;
-const HIT_REACTION_TIME = 0.3;
+const DRAW_MOVE_PENALTY = 0.55;
+/**
+ * Speed multipliers by how far the movement direction is from where you face.
+ * Backpedalling is meant to feel like a retreat, not a second forward gear.
+ */
+const FORWARD_SPEED = 1;
+const STRAFE_SPEED = 0.78;
+const BACKWARD_SPEED = 0.55;
+const HIT_REACTION_TIME = 0.22;
 
 /**
  * Player — the hero, and the object every later system hangs off.
@@ -36,6 +44,7 @@ export class Player {
     this.velocity = new THREE.Vector3();
     this.facing = 0;
     this.radius = 0.4;
+    this.height = 1.9; // for incoming arrows' height check
 
     this.equippedMelee = null;
     this.equippedRanged = null;
@@ -71,7 +80,9 @@ export class Player {
   }
 
   get isAttacking() {
-    return Boolean(this.equippedMelee?.swinging || this.equippedRanged?.firing);
+    return Boolean(
+      this.equippedMelee?.swinging || this.equippedRanged?.firing || this.equippedRanged?.drawing
+    );
   }
 
   // --- Equipment ----------------------------------------------------------
@@ -108,10 +119,27 @@ export class Player {
   swingMelee(state) {
     if (this.dead || !this.equippedMelee) return false;
     this.setHeld('melee');
-    return this.equippedMelee.use(state.time);
+    const swung = this.equippedMelee.use(state.time);
+    if (swung) state.pushEvent('swing');
+    return swung;
+  }
+
+  /** Start pulling the string. Returns false if no shot is available. */
+  drawRanged(state) {
+    if (this.dead || !this.equippedRanged) return false;
+    this.setHeld('ranged');
+    const drawing = this.equippedRanged.beginDraw(state.time);
+    if (drawing) state.pushEvent('bow-draw');
+    return drawing;
+  }
+
+  /** How far the string is pulled, 0..1 — the HUD and the rig both read this. */
+  get drawStrength() {
+    return this.equippedRanged?.drawing ? this.equippedRanged.charge : 0;
   }
 
   /**
+   * Loose the arrow.
    * @param {import('../GameState.js').GameState} state
    * @param {number|null} aimPitch first-person look pitch, in radians. When
    *   null the weapon picks the pitch that carries the shot to its own range.
@@ -126,9 +154,11 @@ export class Player {
       y: aimPitch !== null ? 1.5 : 1.25,
       z: this.position.z + dir.z * 0.55,
     };
-    const shot = this.equippedRanged.use(state.time, origin, dir);
+    const charge = this.drawStrength;
+    const shot = this.equippedRanged.use(state.time, origin, dir, { team: 'player' });
     if (!shot) return false;
     this.projectileSystem.spawn(state, shot);
+    state.pushEvent('bow-release', { power: charge });
     return true;
   }
 
@@ -143,12 +173,15 @@ export class Player {
     this.hitTimer = 0;
     this.rig.triggerFlash(1);
     state.pushDamageEvent({ x: this.position.x, y: 1.9, z: this.position.z }, applied, 'player');
-    if (this.health === 0) this.die();
+    state.pushEvent('player-hurt', { amount: applied });
+    if (this.health === 0) this.die(state);
   }
 
-  die() {
+  die(state = null) {
     this.dead = true;
     this.deathTimer = 0;
+    this.equippedRanged?.cancelDraw();
+    state?.pushEvent('player-death');
   }
 
   respawn() {
@@ -163,6 +196,7 @@ export class Player {
     if (this.equippedRanged) {
       this.equippedRanged.ammo = this.equippedRanged.ammoCapacity;
       this.equippedRanged.reloading = false;
+      this.equippedRanged.cancelDraw();
     }
   }
 
@@ -195,7 +229,9 @@ export class Player {
 
     let speed = BASE_MOVE_SPEED * this.moveSpeedModifier;
     if (this.sprinting) speed *= SPRINT_MULTIPLIER;
-    if (this.isAttacking) speed *= ATTACK_MOVE_PENALTY;
+    if (this.equippedMelee?.swinging) speed *= ATTACK_MOVE_PENALTY;
+    else if (this.equippedRanged?.drawing) speed *= DRAW_MOVE_PENALTY;
+    speed *= this.directionalSpeedFactor(move);
 
     const targetVx = move.x * speed;
     const targetVz = move.z * speed;
@@ -225,6 +261,26 @@ export class Player {
 
     const speed01 = clamp(Math.hypot(this.velocity.x, this.velocity.z) / BASE_MOVE_SPEED, 0, 1);
     this.updateRig(dt, state, speed01);
+  }
+
+  /**
+   * How fast we may travel in the requested direction. Dot product against the
+   * facing direction gives +1 straight ahead, 0 sideways, -1 straight back:
+   *
+   *        forward 1.00
+   *             ▲
+   *   0.78 ◀────●────▶ 0.78     (strafe)
+   *             ▼
+   *        backward 0.55
+   */
+  directionalSpeedFactor(move) {
+    if (move.x === 0 && move.z === 0) return 1;
+    const forward = directionFromYaw(this.facing);
+    const length = Math.hypot(move.x, move.z) || 1;
+    const alignment = (move.x * forward.x + move.z * forward.z) / length;
+    return alignment >= 0
+      ? STRAFE_SPEED + (FORWARD_SPEED - STRAFE_SPEED) * alignment
+      : STRAFE_SPEED + (STRAFE_SPEED - BACKWARD_SPEED) * alignment;
   }
 
   /** Push out of the arena walls and out of any enemy we are overlapping. */
@@ -257,6 +313,9 @@ export class Player {
     } else if (this.equippedMelee?.swinging) {
       rigState = 'attack-melee';
       attackProgress = this.equippedMelee.swingProgress;
+    } else if (this.equippedRanged?.drawing) {
+      rigState = 'draw-ranged';
+      attackKind = 'bow';
     } else if (this.equippedRanged?.firing) {
       rigState = 'attack-ranged';
       attackProgress = this.equippedRanged.fireProgress;
@@ -273,6 +332,7 @@ export class Player {
       moveSpeed01: speed01,
       attackProgress,
       attackKind,
+      drawAmount: this.drawStrength,
       hitProgress: this.hitTimer / HIT_REACTION_TIME,
       deathProgress: (this.deathTimer ?? 0) / 0.8,
     });

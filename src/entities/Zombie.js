@@ -43,10 +43,17 @@ export class Zombie extends Enemy {
     this.attackRange = 1.9;
     this.attackArc = (100 * Math.PI) / 180;
 
-    this.windupTime = 0.5;
+    this.windupTime = 0.42;
     this.strikeTime = 0.12;
-    this.recoverTime = 0.55;
-    this.attackCooldown = 1.1;
+    this.recoverTime = 0.32;
+    this.attackCooldown = 0.75;
+    /**
+     * Fraction of walking speed kept while winding up and recovering. A zombie
+     * that roots itself the moment it raises its arms is trivially walked away
+     * from, and the attack lands on where you *were*.
+     */
+    this.windupSpeedFactor = 0.62;
+    this.recoverSpeedFactor = 0.35;
 
     this.isZombie = true;
     this.state = STATE.IDLE;
@@ -96,7 +103,14 @@ export class Zombie extends Enemy {
 
     this.stateTimer += dt;
     this.cooldownTimer = Math.max(0, this.cooldownTimer - dt);
-    if (this.hitTimer < 0.3) this.hitTimer += dt;
+
+    // Occasional groan while hunting, so a pack behind you is audible.
+    this.groanTimer = (this.groanTimer ?? Math.random() * 4) - dt;
+    if (this.groanTimer <= 0) {
+      this.groanTimer = 3 + Math.random() * 5;
+      if (this.state !== STATE.IDLE) state.pushEvent('zombie-groan');
+    }
+    if (this.hitTimer < 0.18) this.hitTimer += dt;
 
     const player = state.player;
     const dx = player.position.x - this.position.x;
@@ -118,20 +132,16 @@ export class Zombie extends Enemy {
           this.setState(STATE.WINDUP);
           break;
         }
-        // Walk in, but stop short so we do not stand inside the player.
-        if (distance > this.radius + player.radius) {
-          const step = this.speed * dt;
-          this.position.x += (dx / distance) * step;
-          this.position.z += (dz / distance) * step;
-          moving = 1;
-        }
+        moving = this.stepToward(dx, dz, distance, this.speed * dt, player);
         break;
       }
 
       case STATE.WINDUP:
-        // Still tracks you a little during the windup, but slowly: you can
-        // sidestep it.
-        this.facing = dampAngle(this.facing, targetYaw, 0.35, dt);
+        // Keeps walking you down while the arms come up, and keeps turning, so
+        // the strike lands where you are rather than where you were. Slower
+        // than a full charge, so sidestepping still beats it.
+        this.facing = dampAngle(this.facing, targetYaw, 0.06, dt);
+        moving = this.stepToward(dx, dz, distance, this.speed * this.windupSpeedFactor * dt, player);
         if (this.stateTimer >= this.windupTime) this.setState(STATE.STRIKE);
         break;
 
@@ -144,6 +154,8 @@ export class Zombie extends Enemy {
         break;
 
       case STATE.RECOVER:
+        this.facing = dampAngle(this.facing, targetYaw, 0.35, dt);
+        moving = this.stepToward(dx, dz, distance, this.speed * this.recoverSpeedFactor * dt, player);
         if (this.stateTimer >= this.recoverTime) {
           this.cooldownTimer = this.attackCooldown;
           this.setState(STATE.CHASE);
@@ -168,9 +180,17 @@ export class Zombie extends Enemy {
       state: this.isAttacking ? 'attack-claw' : moving ? 'walk' : 'idle',
       moveSpeed01: moving,
       attackProgress: this.animationProgress,
-      hitProgress: this.hitTimer / 0.3,
+      hitProgress: this.hitTimer / 0.18,
       deathProgress: 0,
     });
+  }
+
+  /** Walk `step` metres toward the player, stopping short of overlapping them. */
+  stepToward(dx, dz, distance, step, player) {
+    if (distance <= this.radius + player.radius) return 0;
+    this.position.x += (dx / distance) * step;
+    this.position.z += (dz / distance) * step;
+    return 1;
   }
 
   tryHit(state, player, distance, targetYaw) {

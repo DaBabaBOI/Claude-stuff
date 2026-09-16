@@ -34,6 +34,7 @@ export const RANGED_CONFIGS = {
     ammoCapacity: 12,
     reloadTime: 1.4,
     releaseDelay: 0.1,
+    chargeTime: 0.85,  // hold to draw; a tap shoots a weak, loopy arrow
     model: 'bow',
   },
 };

@@ -1,8 +1,9 @@
 # Action RPG — Skeleton
 
 A Minecraft Dungeons-flavoured action RPG, built skeleton-first. A humanoid blockout
-character moves, aims, swings a sword and fires a ballistic bow, in **top-down or first
-person**, against a test dummy and waves of **zombies that fight back**.
+character moves, aims, swings a sword and draws a ballistic bow, in **top-down or first
+person**, against waves of **zombies** that close in and **skeleton archers** that keep
+their distance.
 
 Still deliberately unbuilt: upgrades, abilities, armour stats, and the rest of the weapon
 roster.
@@ -32,10 +33,11 @@ npm run verify       # headless acceptance test, writes screenshot.png
 | `Shift` | Sprint (drains stamina) |
 | Mouse | Aim — the hero turns to face the cursor |
 | Left click | Swing the melee weapon |
-| Right click | Fire the ranged weapon |
+| Hold right click | Draw the bow — release to loose |
 | `R` | Reload |
 | `1` / `2` | Choose which weapon is held (the other goes on the back) |
 | `V` | Toggle first person / top-down |
+| `M` | Mute |
 | `H` / `Q` | Debug: hurt yourself / reset the scene |
 
 In first person the mouse is captured (click once to lock it, `Esc` to release), `W` walks
@@ -183,6 +185,24 @@ under everything and lands:
                                                           AND 0.15 m ≤ y ≤ 2 m
 ```
 
+## The bow is draw-and-hold
+
+Tapping the button fires; holding it draws. Draw strength scales two things at once, so a
+full pull is worth waiting for and a panic shot is genuinely bad:
+
+```
+  draw     damage        arrow speed     arc
+  ────────────────────────────────────────────────────────
+  0%        6.3          20 m/s          loopy, short
+  50%      14.7          29 m/s          moderate
+  100%     23.1          39 m/s          flat and fast
+```
+
+The arrow's launch angle is solved from its *actual* speed, so a weak shot lobs and a full
+draw shoots flat without any separate trajectory code. The draw meter on the HUD shows the
+damage the shot would do right now, and the crosshair tightens as the string comes back.
+Swinging the sword abandons a half-drawn arrow.
+
 ## Zombies
 
 Waves spawn on a ring around you and close in. Each zombie runs one small state machine
@@ -201,11 +221,56 @@ flowchart LR
 The important part is that **WINDUP is long and visible** — both arms rear up overhead —
 while **STRIKE is a single instant** that only lands if you are still inside the cone at
 that moment. Backing off during the telegraph genuinely saves you, which is what makes
-the fight readable instead of a coin flip. Zombies also shove each other apart, so a pack
-surrounds you instead of stacking into one spot.
+the fight readable instead of a coin flip.
+
+Crucially, a zombie **keeps walking and turning through its windup** (at 62% speed) rather
+than rooting in place. A zombie that freezes the moment it raises its arms is trivially
+strolled away from, and its strike lands where you *were*. Moving through the telegraph
+means you have to actually break the cone, not just keep walking. Zombies also shove each
+other apart, so a pack surrounds you instead of stacking into one spot.
+
+## Skeleton archers
+
+Where a zombie closes, a skeleton wants distance. It holds a band and only shoots from
+inside it, circling while its shot is on cooldown:
+
+```
+  ◀── back away ──│◀──── shoots from in here ────▶│── walk closer ──▶
+  0              4.5 m                          13 m           aggro 22 m
+```
+
+The 0.9 s draw is the whole tell — the string visibly pulls back — and its arrows are slow
+(18 m/s) so a moving target can sidestep one. Push one out of its band and it abandons the
+shot rather than firing point blank. Arrows carry a `team`, so skeleton fire hits you and
+never the zombies beside you.
 
 Getting hit staggers a character: the torso snaps back and the arms fly out on a sine
 curve, so the reaction reads even mid-attack.
+
+## Movement has a front
+
+Speed depends on where you are going relative to where you face, so backing away from a
+zombie is a real retreat rather than a second forward gear:
+
+```
+        forward 1.00
+             ▲
+   0.78 ◀────●────▶ 0.78      (strafe)
+             ▼
+        backward 0.55
+```
+
+## Sound
+
+Every cue is synthesised at runtime from oscillators and filtered noise — no audio files,
+because the project has no asset pipeline and a blockout does not need recorded foley. It
+also means the sound follows the gameplay values: a fully drawn bow twangs lower and
+louder than a snap shot, and a heavy hit thuds deeper than a scratch.
+
+Entities never touch the audio system. They push events onto `GameState.events`, and
+`AudioManager` drains that queue each frame — the same pattern the HUD uses for damage
+numbers. Browsers refuse to start audio before a gesture, so the context opens on your
+first click or key press. `M` mutes.
 
 ## Conventions worth knowing
 
@@ -232,6 +297,7 @@ src/
     Player.js               health, stamina, equipment, movement, attacks
     Enemy.js                base enemy / the test dummy: health, hit reaction, death
     Zombie.js               chase + telegraphed melee attack state machine
+    Skeleton.js             kiting archer: holds a range band, draws, looses
     HumanoidRig.js          primitive humanoid + hand/back sockets + poses
     weaponModels.js         blockout sword and bow props
   combat/
@@ -243,8 +309,9 @@ src/
   systems/
     InputManager.js         keyboard/mouse/gamepad → moveVector + aimYaw
     CameraController.js     locked top-down follow camera + first person
+    AudioManager.js         runtime-synthesised sound, no asset files
   ui/
-    HUD.js                  bars, ammo, weapon chips, damage numbers, crosshair
+    HUD.js                  bars, ammo, draw meter, damage numbers, enemy health bars
 tools/
   serve.mjs                 zero-dependency static server
   verify.mjs                headless Phase 1 acceptance test
@@ -254,34 +321,27 @@ tools/
 
 `npm run verify` drives the real game in headless Chromium with real key presses and
 mouse clicks, and waits on game state rather than wall-clock sleeps (headless software
-rendering runs at ~10 fps, so fixed sleeps mean nothing):
+rendering runs at ~10 fps, so fixed sleeps mean nothing).
+
+**38/38 checks passing**, covering: boot and render; WASD movement; mouse aim; melee swing
+and damage numbers; bow draw, release, travel, arc height, ground stick and hit; reload;
+player hit reaction; zombie chase, telegraph, strike, mid-windup movement and death;
+skeleton draw, loose, damage and range keeping; team-correct arrows; charge scaling for
+both damage and arrow speed; enemy health bars; directional speed; first-person camera,
+mouse-look and movement basis; audio cue plumbing; and zero console errors.
 
 ```
-PASS  game boots and renders frames
-PASS  WASD moves the character
-PASS  mouse aim turns the hero toward the cursor
-PASS  left click starts a swing
-PASS  melee swing damages the dummy
-PASS  damage numbers appear
-PASS  right click fires and spends ammo
-PASS  projectile travels
-PASS  projectile hits the dummy
-PASS  player takes damage and plays a hit reaction
-PASS  reload starts when the magazine is empty
-PASS  reload refills the magazine
-PASS  arrow arcs: rises, then falls
-PASS  arrow arc stays inside a human silhouette
-PASS  arrow sticks in the ground where it lands
-PASS  zombie chases the player down
-PASS  zombie telegraphs a windup, then strikes
-PASS  zombie melee damages the player
-PASS  zombie dies and falls over
-PASS  V switches to first person
-PASS  mouse-look drives the hero facing and the camera
-PASS  first-person W walks where you look
-PASS  no console or page errors
+$ npm run verify
+...
+PASS  a full draw hits harder than a snap shot  (6.3 -> 23.1 damage)
+PASS  a full draw flies faster and flatter  (20 -> 39 m/s)
+PASS  a charged arrow actually lands harder  (tap 6 vs full draw 23)
+PASS  skeleton keeps its distance instead of closing  (held 9.0 m, min range 4.5)
+PASS  enemy arrows do not hit other enemies  (dummy 200/200)
+PASS  zombies keep closing in during their windup  (moved 0.21 m mid-windup at x0.62 speed)
+PASS  forward is faster than strafing, strafing faster than backpedalling  (1.00 / 0.78 / 0.55)
 
-23/23 checks passed
+38/38 checks passed
 ```
 
 ## Deliberately not built yet
@@ -290,7 +350,7 @@ Each of these has a plug point already in place, and nothing else has to change 
 
 | Milestone | Plug point that already exists |
 | --- | --- |
-| 2. Full weapon roster (scythe, daggers, shortbow, crossbow) | `weapons.config.js` — add stat entries; the classes already carry every field |
+| 2. Full weapon roster (scythe, daggers, shortbow, crossbow) | `weapons.config.js` — add stat entries; the classes already carry every field, including `chargeTime: 0` for a crossbow's instant trigger |
 | 3. Armour + upgrades | `Player.equippedArmor` and the `defense` / `staminaRegen` / `moveSpeedModifier` getters read through it; `Weapon.level` + the `damage`/`speed` getters are where the curve goes |
 | 4. Three abilities | `Player.abilities[3]` — three independent empty slots |
 | 5. HUD polish (cooldown sweeps, hit-stop, screen shake) | `HUD.js`, and `CameraController` owns the camera transform |

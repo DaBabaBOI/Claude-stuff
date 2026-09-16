@@ -28,6 +28,38 @@ export class RangedWeapon extends Weapon {
     /** Seconds between pulling the trigger and the projectile leaving. */
     this.releaseDelay = config.releaseDelay ?? 0.12;
 
+    /**
+     * Seconds to a full draw. 0 means the weapon fires the instant you press
+     * (a crossbow's trigger), so one class covers both without a branch at
+     * every call site.
+     */
+    this.chargeTime = config.chargeTime ?? 0;
+    /** Damage and arrow-speed multipliers at zero draw and at a full one. */
+    this.minPower = config.minPower ?? 0.45;
+    this.maxPower = config.maxPower ?? 1.65;
+    this.minVelocity = config.minVelocity ?? 0.65;
+    this.maxVelocity = config.maxVelocity ?? 1.3;
+
+    this.drawing = false;
+    /** 0..1 draw strength. Read by the HUD and the rig's draw pose. */
+    this.charge = 0;
+
+    /**
+     * Seconds to a full draw. 0 means the weapon fires the instant you press
+     * (a crossbow's trigger), so the same class covers both without a branch
+     * at every call site.
+     */
+    this.chargeTime = config.chargeTime ?? 0;
+    /** Damage and arrow-speed multipliers at zero draw and at a full one. */
+    this.minPower = config.minPower ?? 0.45;
+    this.maxPower = config.maxPower ?? 1.65;
+    this.minVelocity = config.minVelocity ?? 0.65;
+    this.maxVelocity = config.maxVelocity ?? 1.3;
+
+    this.drawing = false;
+    /** 0..1 draw strength. Read by the HUD and the rig's draw pose. */
+    this.charge = 0;
+
     this.ammo = this.ammoCapacity;
     this.reloading = false;
     this.reloadEndsAt = 0;
@@ -49,13 +81,53 @@ export class RangedWeapon extends Weapon {
    *     apex = (speed * sin(pitch))^2 / (2 * gravity)
    *   → pitch_max = asin(sqrt(2 * gravity * apex) / speed)
    */
-  get launchPitch() {
-    const sin2 = clamp((GRAVITY * this.range) / (this.projectileSpeed ** 2), 0, 1);
-    const solved = 0.5 * Math.asin(sin2);
-    const capped = Math.asin(
-      clamp(Math.sqrt(2 * GRAVITY * MAX_ARC_APEX) / this.projectileSpeed, 0, 1)
+  get chargeable() {
+    return this.chargeTime > 0;
+  }
+
+  /** Damage this shot would do if released right now. */
+  chargedDamage(charge = this.charge) {
+    return this.damage * (this.minPower + (this.maxPower - this.minPower) * charge);
+  }
+
+  /** Arrow speed this shot would leave at. A full draw also shoots flatter. */
+  chargedVelocity(charge = this.charge) {
+    return (
+      this.projectileSpeed * (this.minVelocity + (this.maxVelocity - this.minVelocity) * charge)
     );
+  }
+
+  /**
+   * Start pulling the string. Returns false when the shot cannot be taken at
+   * all, so the HUD never shows a draw that will not fire.
+   */
+  beginDraw(now) {
+    if (!this.canUse(now) || this.drawing) return false;
+    this.drawing = true;
+    this.charge = 0;
+    return true;
+  }
+
+  /** Advance the draw. Charge clamps at full: over-holding does nothing. */
+  updateDraw(dt) {
+    if (!this.drawing) return;
+    this.charge = this.chargeTime > 0 ? clamp(this.charge + dt / this.chargeTime, 0, 1) : 1;
+  }
+
+  cancelDraw() {
+    this.drawing = false;
+    this.charge = 0;
+  }
+
+  launchPitchFor(velocity = this.projectileSpeed) {
+    const sin2 = clamp((GRAVITY * this.range) / (velocity ** 2), 0, 1);
+    const solved = 0.5 * Math.asin(sin2);
+    const capped = Math.asin(clamp(Math.sqrt(2 * GRAVITY * MAX_ARC_APEX) / velocity, 0, 1));
     return Math.min(solved, capped);
+  }
+
+  get launchPitch() {
+    return this.launchPitchFor();
   }
 
   /** Safety cap only — gravity normally ends the flight first. */
@@ -74,12 +146,16 @@ export class RangedWeapon extends Weapon {
    * @param {{x:number,y:number,z:number}} origin
    * @param {{x:number,z:number}} direction unit vector in XZ
    */
-  use(now, origin, direction) {
+  use(now, origin, direction, { charge = null, team = 'player' } = {}) {
     if (!this.canUse(now)) {
       if (this.ammo <= 0) this.beginReload(now);
+      this.cancelDraw();
       return null;
     }
 
+    const power = charge ?? (this.chargeable ? this.charge : 1);
+    this.drawing = false;
+    this.charge = 0;
     this.ammo -= 1;
     this.startCooldown(now);
     this.firing = true;
@@ -88,19 +164,21 @@ export class RangedWeapon extends Weapon {
     // Split the muzzle speed between "along the aim" and "up", so the shot
     // arcs instead of flying on rails. `pitch` may be overridden by the
     // caller (first-person aiming looks up and down).
-    const pitch = direction.pitch ?? this.launchPitch;
-    const horizontal = this.projectileSpeed * Math.cos(pitch);
+    const velocity = this.chargedVelocity(power);
+    const pitch = direction.pitch ?? this.launchPitchFor(velocity);
+    const horizontal = velocity * Math.cos(pitch);
 
     return {
       x: origin.x,
       y: origin.y,
       z: origin.z,
       vx: direction.x * horizontal,
-      vy: this.projectileSpeed * Math.sin(pitch),
+      vy: velocity * Math.sin(pitch),
       vz: direction.z * horizontal,
-      damage: this.damage,
+      damage: this.chargedDamage(power),
       lifetime: this.projectileLifetime,
-      sourceId: 'player',
+      team,
+      power,
     };
   }
 
@@ -122,6 +200,7 @@ export class RangedWeapon extends Weapon {
       this.reloading = false;
       this.ammo = this.ammoCapacity;
     }
+    if (this.drawing) this.updateDraw(dt);
     if (this.firing) {
       this.fireProgress += dt / this.animationDuration;
       if (this.fireProgress >= 1) {
