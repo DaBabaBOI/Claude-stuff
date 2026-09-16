@@ -228,6 +228,10 @@ Swinging the sword abandons a half-drawn arrow.
 The string is real: two segments running from each limb tip to a shared nocking point that
 sits **exactly** on the draw hand, with a brown-and-white arrow nocked on it.
 
+The bow rides in the **off hand** and is drawn with the main hand, the way an archer
+actually holds one. Holding it in the main hand meant the draw hand had to reach across
+the chest to find the string — anatomically impossible, and it looked it.
+
 Proportion is what sells it. A real bow is drawn about 0.4 of its own height. The first
 version was 0.84 m tall with a 0.77 m draw — a ratio of 0.9 — so the string came back
 further than the bow was tall and the draw hand ended up outside the bow's frame, which

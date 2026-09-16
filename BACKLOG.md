@@ -14,6 +14,10 @@ forearm (0.33 m) → hand, and the bow poses place both hands by two-bone IK
 instead of hand-solved angles. Measured in the acceptance suite: hands land
 within 2 cm of their targets, draw elbow bends to 78°, bow elbow stays at 19°.
 
+**The bow moved to the off hand.** It used to be held in the main hand and drawn
+with the off hand, so the draw arm crossed the chest to reach the string. The
+main hand now draws, and nothing crosses.
+
 **The draw reads correctly now.** The bow was 0.84 m tall with a 0.77 m draw —
 a ratio of 0.9, where a real bow is drawn about 0.4 of its height — so the
 string came back further than the bow was tall and the draw hand sat outside

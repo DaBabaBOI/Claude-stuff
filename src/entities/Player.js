@@ -116,12 +116,21 @@ export class Player {
     return this.equippedRanged?.addAmmo(count) ?? 0;
   }
 
-  /** Parent the held weapon to the hand socket and the other to the back. */
+  /**
+   * Parent each weapon to where it belongs: the held melee weapon in the main
+   * hand, the held bow in the OFF hand (the main hand draws the string), and
+   * whatever is not in use on the back.
+   */
   attachWeapons() {
     for (const slot of ['melee', 'ranged']) {
       const model = this.weaponModels[slot];
       if (!model) continue;
-      const socket = slot === this.heldSlot ? this.rig.handSocket : this.rig.backSocket;
+      const held = slot === this.heldSlot;
+      const socket = held
+        ? slot === 'ranged'
+          ? this.rig.offHandSocket
+          : this.rig.handSocket
+        : this.rig.backSocket;
       if (model.parent !== socket) socket.add(model);
       model.rotation.set(0, 0, 0);
     }

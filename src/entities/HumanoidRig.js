@@ -107,7 +107,7 @@ const _ikQuat = new THREE.Quaternion();
 const BOW_HAND = new THREE.Vector3();
 const DRAW_HAND = new THREE.Vector3();
 const BOW_POLE = new THREE.Vector3(0, -1, -0.2).normalize();   // elbow down/out
-const DRAW_POLE = new THREE.Vector3(0, 0.55, 0.85).normalize(); // elbow up/back
+const DRAW_POLE = new THREE.Vector3(0.3, 0.5, 1).normalize(); // elbow back, up, slightly out
 /**
  * The IK frame's X axis is the elbow's bend axis, which points wherever the
  * pole vector puts it — fine for the arm, wrong for the weapon in the hand.
@@ -238,13 +238,21 @@ export class HumanoidRig {
     this.hipR.position.set(0.15, HIP_Y, 0);
     this.body.add(this.hipL, this.hipR);
 
-    // --- Attachment points. Swap what is parented here, never the rig. ---
-    this.handSocket = armR.hand;
+    /**
+     * --- Attachment points. Swap what is parented here, never the rig. ---
+     *
+     * The bow goes in the OFF hand, like a real archer holds one, and is drawn
+     * with the main hand. Holding the bow in the main hand meant the draw hand
+     * had to reach across the chest to find the string, which is where the
+     * pose looked wrong.
+     *
+     *     main hand (right)  sword, and the hand on the string when shooting
+     *     off hand  (left)   the bow
+     */
+    this.handSocket = armR.hand;      // main hand
+    this.offHandSocket = armL.hand;   // off hand
+    this.drawHandSocket = armR.hand;  // the hand on the string
     this.handSocket.rotation.x = GRIP_CARRY;
-
-    // Draw hand: not a weapon mount, but the string has to be gripped by
-    // something, so the bow model is told where this point is each frame.
-    this.drawHandSocket = armL.hand;
 
     this.backSocket = new THREE.Object3D();
     // Slung diagonally: grip at the lower right of the back, weapon extending
@@ -411,18 +419,18 @@ export class HumanoidRig {
       targetGrip = GRIP_BOW;
       twist = lerp(0.1, 0.34, clamp(pull, 0, 1));
 
-      BOW_HAND.set(0.3, 1.45, -0.7);
-      // Draw length is what sells it: about 0.55 m back from the grip, against
-      // a bow 1.24 m tall. At rest the draw hand sits on the string right by
-      // the bow, which is what nocking an arrow looks like.
+      // Bow arm out on the off side; the draw hand comes back to the cheek on
+      // its OWN side, so nothing crosses the chest. Draw length lands near
+      // 0.6 m against a bow 1.24 m tall.
+      BOW_HAND.set(-0.28, 1.45, -0.68);
       DRAW_HAND.set(
-        lerp(0.3, 0.25, pull),
-        lerp(1.46, 1.53, pull),
-        lerp(-0.56, -0.17, pull)
+        lerp(-0.12, 0.04, pull),
+        lerp(1.49, 1.56, pull),
+        lerp(-0.48, -0.2, pull)
       );
 
-      solveArmIK(this.shoulderR, this.elbowR, UPPER_ARM, FOREARM, BOW_HAND, BOW_POLE);
-      solveArmIK(this.shoulderL, this.elbowL, UPPER_ARM, FOREARM, DRAW_HAND, DRAW_POLE);
+      solveArmIK(this.shoulderL, this.elbowL, UPPER_ARM, FOREARM, BOW_HAND, BOW_POLE);
+      solveArmIK(this.shoulderR, this.elbowR, UPPER_ARM, FOREARM, DRAW_HAND, DRAW_POLE);
       // Published so tooling can check the hands actually reached them without
       // duplicating the numbers somewhere they can go stale.
       this.ikTargets.bow.copy(BOW_HAND);
@@ -484,7 +492,7 @@ export class HumanoidRig {
     // The held bow, if it has a string, gets told where the draw hand actually
     // is, so the string bends around the hand instead of the hand hovering
     // near a straight cylinder.
-    const held = this.handSocket.children[0];
+    const held = this.offHandSocket.children[0];
     if (held?.setNock) {
       const drawing = state === 'draw-ranged';
       if (drawing) {

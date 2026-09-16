@@ -53,7 +53,7 @@ export class Skeleton extends Enemy {
       reloadTime: 0,
       model: 'bow',
     });
-    this.rig.handSocket.add(createWeaponModel('bow'));
+    this.rig.offHandSocket.add(createWeaponModel('bow'));
 
     this.speed = 2.6;
     this.aggroRange = 22;
