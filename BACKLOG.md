@@ -14,6 +14,13 @@ forearm (0.33 m) → hand, and the bow poses place both hands by two-bone IK
 instead of hand-solved angles. Measured in the acceptance suite: hands land
 within 2 cm of their targets, draw elbow bends to 78°, bow elbow stays at 19°.
 
+**The draw reads correctly now.** The bow was 0.84 m tall with a 0.77 m draw —
+a ratio of 0.9, where a real bow is drawn about 0.4 of its height — so the
+string came back further than the bow was tall and the draw hand sat outside
+the bow's frame, which looked like gripping the limb. The bow is now 1.24 m
+with a 0.55 m draw, and the nocking point sits exactly on the hand rather than
+being flattened onto the bow's plane. Both are asserted in the suite.
+
 Still wrong or missing:
 
 - **The bow-arm wrist is still locked.** The bow hangs off `handSocket` with a

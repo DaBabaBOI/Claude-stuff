@@ -226,7 +226,13 @@ damage the shot would do right now, and the crosshair tightens as the string com
 Swinging the sword abandons a half-drawn arrow.
 
 The string is real: two segments running from each limb tip to a shared nocking point that
-follows the draw hand, with a brown-and-white arrow nocked on it.
+sits **exactly** on the draw hand, with a brown-and-white arrow nocked on it.
+
+Proportion is what sells it. A real bow is drawn about 0.4 of its own height. The first
+version was 0.84 m tall with a 0.77 m draw — a ratio of 0.9 — so the string came back
+further than the bow was tall and the draw hand ended up outside the bow's frame, which
+reads as gripping the limb rather than the string. It is now **1.24 m tall with a 0.55 m
+draw** (0.44), and both numbers are asserted so they cannot drift back.
 
 ```
         tip ●
@@ -414,7 +420,7 @@ tools/
 mouse clicks, and waits on game state rather than wall-clock sleeps (headless software
 rendering runs at ~10 fps, so fixed sleeps mean nothing).
 
-**55/55 checks passing**, covering: boot and render; WASD movement; mouse aim; melee swing
+**56/56 checks passing**, covering: boot and render; WASD movement; mouse aim; melee swing
 and damage numbers; bow draw, release, travel, arc height, ground stick and hit; reload;
 player hit reaction; zombie chase, telegraph, strike, mid-windup movement and death;
 skeleton draw, loose, damage and range keeping; team-correct arrows; charge scaling for
@@ -431,7 +437,8 @@ PASS  skeleton keeps its distance instead of closing  (held 9.0 m, min range 4.5
 PASS  enemy arrows do not hit other enemies  (dummy 200/200)
 PASS  zombies keep closing in during their windup  (moved 0.21 m mid-windup at x0.62 speed)
 PASS  forward is faster than strafing, strafing faster than backpedalling  (1.00 / 0.78 / 0.55)
-PASS  the draw hand grips the actual bowstring  (hand to nocking point: 0.058 m)
+PASS  the draw hand grips the actual bowstring  (hand to nocking point: 0.0 cm)
+PASS  the draw is in proportion to the bow  (0.55 m draw on a 1.24 m bow (0.44))
 PASS  arrows on the back match the arrows you have  (12 shown at full, 4 shown at 4)
 PASS  walking over a bundle refills the quiver  (2 -> 7 arrows)
 PASS  IK puts both hands on their targets  (bow hand off by 0.9 cm, draw hand 2.0 cm)
@@ -440,7 +447,7 @@ PASS  armoured zombies wear armour and soak damage  (took 17 vs 20, defense 3)
 PASS  Q heals you  (40 -> 72 health)
 PASS  the heal goes on cooldown  (7s cooldown, 7.0s left)
 
-55/55 checks passed
+56/56 checks passed
 ```
 
 ## Deliberately not built yet

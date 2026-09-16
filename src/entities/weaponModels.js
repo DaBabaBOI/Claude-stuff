@@ -101,6 +101,17 @@ function createSword() {
   return group;
 }
 
+/**
+ * Bow proportions. A real longbow is about 1.7 m tall and drawn about 0.7 m —
+ * roughly 0.4 of its height. The first version was 0.84 m tall with a 0.77 m
+ * draw, a ratio of 0.9, so the string came back further than the bow was tall
+ * and the draw hand ended up outside the bow's frame entirely. That is what
+ * made it look like the archer was gripping the limb instead of the string.
+ */
+const BOW_RADIUS = 0.62;          // half-height: the bow stands ~1.24 m
+const BOW_ARC = Math.PI * 0.9;    // how much of the circle the riser spans
+const TIP_ANGLE = BOW_ARC / 2;    // limb tips, measured from the arc's middle
+
 function createBow() {
   const group = new THREE.Group();
 
@@ -115,17 +126,15 @@ function createBow() {
    *     socket ±Z  ->  up and down (the limb axis)
    *
    * So: limbs span Z, the riser bulges along -Y (away from the archer), and the
-   * string is a chord on the +Y side, nearest the face. Building it the other
-   * way round is what made the bow read backwards — the string ended up out
-   * front, pointing at the target.
+   * string is a chord on the +Y side, nearest the face.
    */
   const art = new THREE.Group();
-  art.position.y = 0.42;  // grip sits at the riser's middle, i.e. the socket
-  art.rotation.y = 0.45;  // canted, so it is not a single line from top-down
+  art.position.y = BOW_RADIUS; // grip sits at the riser's middle, i.e. the socket
+  art.rotation.y = 0.45;       // canted, so it is not a single line from top-down
   group.add(art);
 
   const riser = new THREE.Mesh(
-    new THREE.TorusGeometry(0.42, 0.028, 6, 16, Math.PI * 0.9),
+    new THREE.TorusGeometry(BOW_RADIUS, 0.032, 6, 18, BOW_ARC),
     WOOD
   );
   riser.rotation.y = Math.PI / 2; // ring plane XY -> ZY
@@ -135,19 +144,21 @@ function createBow() {
 
   // --- the string ----------------------------------------------------------
   // Two segments running from each limb tip to a shared nocking point, so the
-  // string bends into a V around whatever the draw hand is doing rather than
-  // staying a straight cylinder the hand merely passes near.
+  // string bends into a V around the draw hand rather than staying a straight
+  // cylinder the hand merely passes near.
   //
   //        tip ●
   //             ╲
-  //              ●── nock (follows the draw hand)
+  //              ●── nock (follows the draw hand exactly)
   //             ╱
   //        tip ●
-  const TIP_TOP = new THREE.Vector3(0, -0.065, 0.415);
-  const TIP_BOTTOM = new THREE.Vector3(0, -0.065, -0.415);
-  const restNock = new THREE.Vector3(0, -0.065, 0);
+  const tipZ = BOW_RADIUS * Math.sin(TIP_ANGLE);
+  const tipY = -BOW_RADIUS * Math.cos(TIP_ANGLE);
+  const TIP_TOP = new THREE.Vector3(0, tipY, tipZ);
+  const TIP_BOTTOM = new THREE.Vector3(0, tipY, -tipZ);
+  const restNock = new THREE.Vector3(0, tipY, 0);
 
-  const segmentGeometry = new THREE.CylinderGeometry(0.008, 0.008, 1, 4);
+  const segmentGeometry = new THREE.CylinderGeometry(0.009, 0.009, 1, 4);
   const segments = [new THREE.Mesh(segmentGeometry, STRING), new THREE.Mesh(segmentGeometry, STRING)];
   for (const segment of segments) art.add(segment);
 
@@ -171,7 +182,9 @@ function createBow() {
   }
 
   /**
-   * Put the nocking point wherever the draw hand is.
+   * Put the nocking point wherever the draw hand is — exactly, in all three
+   * axes. Flattening it onto the bow's plane looked tidier but left a visible
+   * gap between the hand and the string, which is the whole thing this is for.
    * @param {THREE.Vector3|null} worldPoint the draw hand, or null for at rest
    * @param {number} drawAmount 0..1, only used to show the nocked arrow
    */
@@ -180,27 +193,23 @@ function createBow() {
       art.updateWorldMatrix(true, false);
       _nock.copy(worldPoint);
       art.worldToLocal(_nock);
-      // Flatten onto the bow's plane so the V does not skew out sideways, and
-      // never let the hand push the string forward through the riser. Beyond
-      // that the nock goes exactly where the hand is.
-      _nock.x = 0;
-      _nock.y = Math.max(_nock.y, -0.065);
+      // Never let the hand push the string forward through the riser.
+      _nock.y = Math.max(_nock.y, tipY);
     } else {
       _nock.copy(restNock);
     }
 
     stretch(segments[0], TIP_TOP, _nock);
     stretch(segments[1], TIP_BOTTOM, _nock);
-    // Where the string actually ended up, in world space — the draw hand
-    // should be sitting on this point.
+
     if (!group.userData.nockWorld) group.userData.nockWorld = new THREE.Vector3();
     group.userData.nockWorld.copy(_nock);
     art.localToWorld(group.userData.nockWorld);
 
     nockedArrow.visible = drawAmount > 0.02;
     if (nockedArrow.visible) {
-      // Tail at the string, pointing down the flight axis (-Y).
-      nockedArrow.position.set(0, _nock.y - ARROW_LENGTH / 2, _nock.z);
+      // Tail on the string, pointing down the flight axis (-Y).
+      nockedArrow.position.set(_nock.x, _nock.y - ARROW_LENGTH / 2, _nock.z);
     }
   };
 

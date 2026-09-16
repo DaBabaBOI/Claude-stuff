@@ -264,6 +264,8 @@ export class HumanoidRig {
     this.walkPhase = 0;
     this.flash = 0;
     this._drawHandWorld = new THREE.Vector3();
+    /** Last hand targets the bow poses asked the IK for, in body space. */
+    this.ikTargets = { bow: new THREE.Vector3(), draw: new THREE.Vector3() };
     /** Grip tilt of the held weapon, damped between poses. */
     this.gripTilt = GRIP_CARRY;
     this._baseEmissive = new THREE.Color(0x000000);
@@ -410,14 +412,21 @@ export class HumanoidRig {
       twist = lerp(0.1, 0.34, clamp(pull, 0, 1));
 
       BOW_HAND.set(0.3, 1.45, -0.7);
+      // Draw length is what sells it: about 0.55 m back from the grip, against
+      // a bow 1.24 m tall. At rest the draw hand sits on the string right by
+      // the bow, which is what nocking an arrow looks like.
       DRAW_HAND.set(
-        lerp(0.27, 0.19, pull),
-        lerp(1.42, 1.53, pull),
-        lerp(-0.46, 0.04, pull)
+        lerp(0.3, 0.25, pull),
+        lerp(1.46, 1.53, pull),
+        lerp(-0.56, -0.17, pull)
       );
 
       solveArmIK(this.shoulderR, this.elbowR, UPPER_ARM, FOREARM, BOW_HAND, BOW_POLE);
       solveArmIK(this.shoulderL, this.elbowL, UPPER_ARM, FOREARM, DRAW_HAND, DRAW_POLE);
+      // Published so tooling can check the hands actually reached them without
+      // duplicating the numbers somewhere they can go stale.
+      this.ikTargets.bow.copy(BOW_HAND);
+      this.ikTargets.draw.copy(DRAW_HAND);
       ikHandled = true;
     }
 

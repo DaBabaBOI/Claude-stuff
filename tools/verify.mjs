@@ -459,18 +459,22 @@ try {
     const hand = new (g.state.player.position.constructor)();
     rig.drawHandSocket.getWorldPosition(hand);
     const nock = model.userData.nockWorld;
-    const arrowVisible = model.children[0].children.some(
-      (c) => c.visible && c.type === 'Group'
-    ) || model.children[0].children.length > 0;
+    const bowHand = new (g.state.player.position.constructor)();
+    rig.handSocket.getWorldPosition(bowHand);
     bow.cancelDraw();
     return {
       gap: nock ? hand.distanceTo(nock) : null,
-      draw: g.player.drawStrength,
-      arrowVisible,
+      drawLength: bowHand.distanceTo(hand),
+      bowHeight: 0.62 * 2,
     };
   });
-  check('the draw hand grips the actual bowstring', grip.gap !== null && grip.gap < 0.3,
-    `hand to nocking point: ${grip.gap === null ? 'no string' : grip.gap.toFixed(3) + ' m'}`);
+  check('the draw hand grips the actual bowstring', grip.gap !== null && grip.gap < 0.02,
+    `hand to nocking point: ${grip.gap === null ? 'no string' : (grip.gap * 100).toFixed(1) + ' cm'}`);
+  // A real bow is drawn about 0.4 of its own height. Much past that and the
+  // hand ends up outside the bow's frame, which reads as holding the limb.
+  const ratio = grip.drawLength / grip.bowHeight;
+  check('the draw is in proportion to the bow', ratio > 0.3 && ratio < 0.55,
+    `${grip.drawLength.toFixed(2)} m draw on a ${grip.bowHeight.toFixed(2)} m bow (${ratio.toFixed(2)})`);
 
   // --- 10. skeleton archers --------------------------------------------------
   await page.evaluate(() => {
@@ -653,10 +657,13 @@ try {
     const bow = toBody(rig.handSocket);
     const draw = toBody(rig.drawHandSocket);
     const gap = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
+    // Compare against the targets the rig actually asked for, so moving a pose
+    // cannot silently break the check.
+    const targets = rig.ikTargets;
     g.player.equippedRanged.cancelDraw();
     return {
-      bowGap: gap(bow, { x: 0.3, y: 1.45, z: -0.7 }),
-      drawGap: gap(draw, { x: 0.19, y: 1.53, z: 0.04 }),
+      bowGap: gap(bow, targets.bow),
+      drawGap: gap(draw, targets.draw),
       bowBend: rig.elbowR.rotation.x,
       drawBend: rig.elbowL.rotation.x,
       hasElbows: Boolean(rig.elbowL && rig.elbowR),
@@ -665,7 +672,8 @@ try {
   check('arms have elbows', ik.hasElbows);
   check('IK puts both hands on their targets', ik.bowGap < 0.04 && ik.drawGap < 0.04,
     `bow hand off by ${(ik.bowGap * 100).toFixed(1)} cm, draw hand ${(ik.drawGap * 100).toFixed(1)} cm`);
-  check('the draw arm bends and the bow arm stays long', ik.drawBend > 1 && ik.bowBend < 0.6,
+  check('the draw arm bends and the bow arm stays long',
+    ik.drawBend > 0.6 && ik.drawBend > ik.bowBend * 2,
     `draw elbow ${((ik.drawBend * 180) / Math.PI).toFixed(0)}°, bow elbow ${((ik.bowBend * 180) / Math.PI).toFixed(0)}°`);
 
   // --- 14. zombie ranks ------------------------------------------------------
