@@ -417,16 +417,33 @@ export class HumanoidRig {
       const pull = drawing ? drawAmount : p < 0.3 ? 1.1 : lerp(1.1, 0, easeOut((p - 0.3) / 0.7));
 
       targetGrip = GRIP_BOW;
-      twist = lerp(0.1, 0.34, clamp(pull, 0, 1));
+      // Barely any twist while drawing. The hand targets below are in BODY
+      // space, so twisting the torso rotates the whole arrow line with it — at
+      // 0.34 rad that alone threw the arrow 19 degrees off the way you aim.
+      twist = lerp(0.02, 0.07, clamp(pull, 0, 1));
 
-      // Bow arm out on the off side; the draw hand comes back to the cheek on
-      // its OWN side, so nothing crosses the chest. Draw length lands near
-      // 0.6 m against a bow 1.24 m tall.
-      BOW_HAND.set(-0.28, 1.45, -0.68);
+      /**
+       * Both hands sit close to the body's centre line, one in front of the
+       * other, because the ARROW LINE runs between them — and that line is what
+       * the arrow points along.
+       *
+       *        aim ◀─────────────────────
+       *             ● grip      ● nock          hands nearly in line: the
+       *                                         arrow points where you aim
+       *
+       *             ●  grip                     hands off to one side: the
+       *                      ● nock             arrow points 49° wide, which
+       *                                         is what this looked like
+       *
+       * A real archer stands side-on to the target, which puts the bow hand
+       * and the anchor on the aim line naturally. This character always faces
+       * its target square-on, so the pose has to do that work instead.
+       */
+      BOW_HAND.set(-0.05, 1.54, -0.66);
       DRAW_HAND.set(
-        lerp(-0.12, 0.04, pull),
-        lerp(1.49, 1.56, pull),
-        lerp(-0.48, -0.2, pull)
+        lerp(-0.06, -0.02, pull),
+        lerp(1.5, 1.55, pull),
+        lerp(-0.42, -0.13, pull)
       );
 
       solveArmIK(this.shoulderL, this.elbowL, UPPER_ARM, FOREARM, BOW_HAND, BOW_POLE);

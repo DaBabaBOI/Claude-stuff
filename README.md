@@ -242,6 +242,23 @@ The bow rides in the **off hand** and is drawn with the main hand, the way an ar
 actually holds one. Holding it in the main hand meant the draw hand had to reach across
 the chest to find the string — anatomically impossible, and it looked it.
 
+Two bits of geometry decide whether it reads:
+
+**Brace height.** The riser is an arc of a circle, and the arc's depth sets where the
+undrawn string sits: `brace = radius × (1 − cos(half the arc))`. A 162° arc — nearly a
+half circle — puts the resting string 0.52 m behind the grip, which is as far back as the
+hand draws it, so the hand lands on the already-resting string and nothing looks pulled.
+The riser is now a shallow 90° arc: 1.2 m tip to tip, with the string a realistic 0.25 m
+behind the grip and room to actually draw it.
+
+**The arrow line is the stance.** The arrow runs between the two hands, so if they are not
+roughly one in front of the other, the arrow points wide no matter how it is oriented. A
+real archer stands side-on, which puts both hands on the aim line for free; this character
+always faces its target square-on, so the pose has to do that work. The body twist matters
+here too — the hand targets are in body space, so twisting the torso rotates the whole
+arrow line with it, and 0.34 rad of coil alone threw the arrow 19° wide. The arrow now
+sits within about 8° of where you are aiming, and that is asserted.
+
 Proportion is what sells it. A real bow is drawn about 0.4 of its own height. The first
 version was 0.84 m tall with a 0.77 m draw — a ratio of 0.9 — so the string came back
 further than the bow was tall and the draw hand ended up outside the bow's frame, which
@@ -434,7 +451,7 @@ tools/
 mouse clicks, and waits on game state rather than wall-clock sleeps (headless software
 rendering runs at ~10 fps, so fixed sleeps mean nothing).
 
-**56/56 checks passing**, covering: boot and render; WASD movement; mouse aim; melee swing
+**57/57 checks passing**, covering: boot and render; WASD movement; mouse aim; melee swing
 and damage numbers; bow draw, release, travel, arc height, ground stick and hit; reload;
 player hit reaction; zombie chase, telegraph, strike, mid-windup movement and death;
 skeleton draw, loose, damage and range keeping; team-correct arrows; charge scaling for
@@ -452,7 +469,8 @@ PASS  enemy arrows do not hit other enemies  (dummy 200/200)
 PASS  zombies keep closing in during their windup  (moved 0.21 m mid-windup at x0.62 speed)
 PASS  forward is faster than strafing, strafing faster than backpedalling  (1.00 / 0.78 / 0.55)
 PASS  the draw hand grips the actual bowstring  (hand to nocking point: 0.0 cm)
-PASS  the draw is in proportion to the bow  (0.55 m draw on a 1.24 m bow (0.44))
+PASS  the draw is in proportion to the bow  (0.52 m draw on a 1.20 m bow (0.44))
+PASS  the nocked arrow points where you are aiming  (7.8° off the aim direction)
 PASS  arrows on the back match the arrows you have  (12 shown at full, 4 shown at 4)
 PASS  walking over a bundle refills the quiver  (2 -> 7 arrows)
 PASS  IK puts both hands on their targets  (bow hand off by 0.9 cm, draw hand 2.0 cm)
@@ -461,7 +479,7 @@ PASS  armoured zombies wear armour and soak damage  (took 17 vs 20, defense 3)
 PASS  Q heals you  (40 -> 72 health)
 PASS  the heal goes on cooldown  (7s cooldown, 7.0s left)
 
-56/56 checks passed
+57/57 checks passed
 ```
 
 ## Deliberately not built yet

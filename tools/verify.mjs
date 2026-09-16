@@ -448,6 +448,8 @@ try {
   const grip = await page.evaluate(async () => {
     const g = window.__game;
     const bow = g.player.equippedRanged;
+    const savedUpdate = g.input.update;
+    g.input.update = () => {};
     bow.nextReadyAt = 0;
     bow.ammo = bow.ammoCapacity;
     g.player.drawRanged(g.state);
@@ -462,10 +464,11 @@ try {
     const bowHand = new (g.state.player.position.constructor)();
     rig.offHandSocket.getWorldPosition(bowHand);
     bow.cancelDraw();
+    g.input.update = savedUpdate;
     return {
       gap: nock ? hand.distanceTo(nock) : null,
       drawLength: bowHand.distanceTo(hand),
-      bowHeight: 0.62 * 2,
+      bowHeight: 2 * 0.85 * Math.sin(Math.PI / 4), // tip to tip, ~1.2 m
     };
   });
   // A few centimetres of slack is expected: the string is placed from the draw
@@ -474,6 +477,46 @@ try {
   // a target that never quite stops moving.
   check('the draw hand grips the actual bowstring', grip.gap !== null && grip.gap < 0.05,
     `hand to nocking point: ${grip.gap === null ? 'no string' : (grip.gap * 100).toFixed(1) + ' cm'}`);
+  // The nocked arrow has to point roughly where the shot will go. It runs
+  // along the nock-to-grip line, so this catches both a mis-oriented arrow and
+  // a stance that swings that line off the aim direction — the body twist did
+  // exactly that, throwing it 49 degrees wide while the arrow itself was
+  // perfectly aligned to a line pointing the wrong way.
+  const aim = await page.evaluate(async () => {
+    const g = window.__game;
+    const bow = g.player.equippedRanged;
+    // Freeze aiming: the suite has moved the cursor, and a hero mid-turn makes
+    // this measurement meaningless.
+    const savedUpdate = g.input.update;
+    g.input.update = () => {};
+    bow.nextReadyAt = 0;
+    bow.ammo = bow.ammoCapacity;
+    g.player.position.set(0, 0, 0);
+    g.player.facing = 0;
+    g.player.drawRanged(g.state);
+    for (let i = 0; i < 120 && g.player.drawStrength < 0.99; i++) {
+      await new Promise((r) => requestAnimationFrame(r));
+    }
+    const model = g.player.rig.offHandSocket.children[0];
+    const art = model.children.find((c) => c.type === 'Group');
+    const arrow = art.children.find((c) => c.type === 'Group' && c.children.length >= 4);
+    const m = arrow.matrixWorld.elements;
+    const len = Math.hypot(m[8], m[9], m[10]) || 1;
+    // Arrow's nose is its local -Z; compare against where the hero faces.
+    const nose = { x: -m[8] / len, y: -m[9] / len, z: -m[10] / len };
+    const facing = { x: -Math.sin(g.player.facing), z: -Math.cos(g.player.facing) };
+    const dot = nose.x * facing.x + nose.z * facing.z + nose.y * 0;
+    bow.cancelDraw();
+    g.input.update = savedUpdate;
+    return {
+      visible: arrow.visible,
+      degreesOffAim: (Math.acos(Math.max(-1, Math.min(1, dot))) * 180) / Math.PI,
+    };
+  });
+  check('the nocked arrow points where you are aiming',
+    aim.visible && aim.degreesOffAim < 12,
+    `${aim.degreesOffAim.toFixed(1)}° off the aim direction`);
+
   // A real bow is drawn about 0.4 of its own height. Much past that and the
   // hand ends up outside the bow's frame, which reads as holding the limb.
   const ratio = grip.drawLength / grip.bowHeight;

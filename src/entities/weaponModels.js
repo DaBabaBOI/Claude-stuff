@@ -108,9 +108,28 @@ function createSword() {
  * and the draw hand ended up outside the bow's frame entirely. That is what
  * made it look like the archer was gripping the limb instead of the string.
  */
-const BOW_RADIUS = 0.62;          // half-height: the bow stands ~1.24 m
-const BOW_ARC = Math.PI * 0.9;    // how much of the circle the riser spans
-const TIP_ANGLE = BOW_ARC / 2;    // limb tips, measured from the arc's middle
+/**
+ * The riser is an arc of a circle, and the arc's DEPTH decides where the
+ * undrawn string sits:
+ *
+ *     brace height = radius * (1 - cos(half the arc))
+ *
+ * A 162-degree arc — nearly a half circle — put the resting string 0.52 m
+ * behind the grip, which is as far back as the hand draws it. The draw hand
+ * landed on the already-resting string, so nothing looked pulled. Real bows
+ * are a shallow curve with a brace height around a quarter of a metre.
+ *
+ *     ╭─╮  162 deg: string way back here   ╭   90 deg: string just behind
+ *     │ │  ║                               │   ║  the grip, room to draw
+ *     ╰─╯  ║                               ╰   ║
+ */
+const BOW_RADIUS = 0.85;          // arc radius, not the bow's height
+const BOW_ARC = Math.PI / 2;      // 90 degrees: a shallow, bow-shaped curve
+const TIP_ANGLE = BOW_ARC / 2;
+/** Tip to tip: about 1.2 m. */
+export const BOW_SPAN = 2 * BOW_RADIUS * Math.sin(TIP_ANGLE);
+/** How far the resting string sits behind the grip: about 0.25 m. */
+export const BOW_BRACE = BOW_RADIUS * (1 - Math.cos(TIP_ANGLE));
 
 function createBow() {
   const group = new THREE.Group();
@@ -134,7 +153,7 @@ function createBow() {
   group.add(art);
 
   const riser = new THREE.Mesh(
-    new THREE.TorusGeometry(BOW_RADIUS, 0.032, 6, 18, BOW_ARC),
+    new THREE.TorusGeometry(BOW_RADIUS, 0.028, 6, 18, BOW_ARC),
     WOOD
   );
   riser.rotation.y = Math.PI / 2; // ring plane XY -> ZY
