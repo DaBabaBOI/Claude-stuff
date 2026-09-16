@@ -203,7 +203,7 @@ for(const n of page.children.filter(c=>toRemove.includes(c.name))) n.remove();
   screenLabel(NAME,X,Y);
   const root=newRoot(NAME,X,Y);
   const content=shell(root,'AI Helper');
-  content.layoutMode='HORIZONTAL'; content.gap=24;
+  content.layoutMode='HORIZONTAL'; content.itemSpacing=24;
 
   const left=al(content,'VERTICAL',{name:'Chat column',gap:16,fw:true,fh:true});
   text(left,'Clarion AI','Bold',20,K);
