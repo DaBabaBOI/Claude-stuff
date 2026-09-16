@@ -7,6 +7,8 @@
 <title>Crack the Vault</title>
 <!--
   Crack the Vault — a classroom escape-room game about codes, patterns and digital safety.
+  Six doors: arithmetic sequence, geometric sequence, a Fibonacci-style growing chain, an
+  A=1..Z=26 phrase, an Atbash mirror cipher, and a Caesar-shifted safety tip.
   Single file: no build step, no libraries. Open it by double-clicking.
   The Google Font below is optional decoration; it loads without blocking the page and the
   game falls back to system fonts when offline.
@@ -20,7 +22,7 @@
     --bg1: #fff1d6; --bg2: #d9efff; --page: #f7f5ff;
     --ink: #1f2347; --muted: #5a6285;
     --door: #2b3560; --door2: #1a2244; --rivet: #ffd166;
-    --coral: #ff6b6b; --coral-dark: #d94e4e; --sun: #ffd166; --mint: #22c48b; --sky: #3aa7f0; --violet: #8b5cf6;
+    --coral: #ff6b6b; --coral-dark: #d94e4e; --sun: #ffd166; --mint: #22c48b; --sky: #3aa7f0; --violet: #8b5cf6; --teal: #14b8a6;
     --team1: #ff6b6b; --team2: #3aa7f0; --team3: #8b5cf6;
     --radius: 24px;
     --shadow: 0 12px 34px rgba(31, 35, 71, .13);
@@ -108,6 +110,7 @@
   .step b { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; color: #fff; font-size: 1rem; }
   .step:nth-child(1) b { background: var(--coral); } .step:nth-child(2) b { background: var(--sky); }
   .step:nth-child(3) b { background: var(--mint); } .step:nth-child(4) b { background: var(--violet); }
+  .step:nth-child(5) b { background: var(--sun); color: #5a3d00; } .step:nth-child(6) b { background: var(--teal); }
   .setup { display: grid; gap: 16px; justify-items: center; }
   .field { display: grid; gap: 6px; text-align: left; width: 100%; max-width: 420px; }
   .field span { font-weight: 800; font-size: .95rem; color: var(--muted); }
@@ -184,6 +187,7 @@
     box-shadow: 0 5px 0 rgba(0, 0, 0, .3);
   }
   .chip.blank { background: var(--sun); color: #5a3d00; animation: blink 1.4s ease-in-out infinite; }
+  .chip.space { background: rgba(255, 255, 255, .3); color: rgba(255, 255, 255, .9); box-shadow: none; border: 2px dashed rgba(255, 255, 255, .55); font-size: 1.3rem; }
   @keyframes blink { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
   .sep { color: rgba(255, 255, 255, .55); font-size: 2rem; font-weight: 900; }
   .cipher {
@@ -295,7 +299,7 @@
 <header class="topbar" id="topbar" hidden>
   <div class="brand">🔐 Crack the Vault</div>
   <div class="topbar-right">
-    <span class="pill door" id="doorPill">Door 1 of 4</span>
+    <span class="pill door" id="doorPill">Door 1 of 6</span>
     <span class="pill" id="modePill"></span>
     <span class="pill timer" id="timer" title="Time so far (counts up, no limit)">⏱ 00:00</span>
     <button type="button" class="quit-btn" id="btnQuit" title="Stop this game and go back to the start">✕ Quit</button>
@@ -330,11 +334,13 @@
     <h1 class="title">Crack the Vault</h1>
     <p class="tagline">Solve each lock to open the vault. Work together!</p>
 
-    <div class="steps" aria-label="The four doors">
+    <div class="steps" aria-label="The six doors">
       <div class="step"><b>1</b> Number pattern</div>
       <div class="step"><b>2</b> Growing pattern</div>
-      <div class="step"><b>3</b> Letter code</div>
-      <div class="step"><b>4</b> Secret message</div>
+      <div class="step"><b>3</b> Growing chain</div>
+      <div class="step"><b>4</b> Secret phrase</div>
+      <div class="step"><b>5</b> Mirror code</div>
+      <div class="step"><b>6</b> Secret message</div>
     </div>
 
     <div class="card">
@@ -430,7 +436,8 @@
 const VaultCore = (function () {
   'use strict';
 
-  const WORDS = ['SAFE', 'LOCK', 'CODE', 'SECURE', 'STRONG'];
+  const PHRASES = ['STAY SAFE', 'LOCK IT', 'BE SECURE', 'THINK TWICE', 'STOP AND THINK', 'ASK FIRST', 'ONLINE SAFETY'];
+  const MIRROR_WORDS = ['PRIVACY', 'PASSWORD', 'FIREWALL', 'ANTIVIRUS', 'ENCRYPT', 'PHISHING', 'SECURITY'];
   const TIPS = [
     'MAKE YOUR PASSWORD STRONG',
     'NEVER SHARE YOUR PASSWORD',
@@ -441,17 +448,22 @@ const VaultCore = (function () {
     'UPDATE YOUR APPS OFTEN',
     'TURN ON TWO FACTOR LOGIN',
     'CHECK LINKS BEFORE YOU TAP',
-    'BE KIND AND SAFE ONLINE'
+    'BE KIND AND SAFE ONLINE',
+    'THINK BEFORE YOU SHARE A PHOTO ONLINE',
+    'A STRONG PASSWORD MIXES LETTERS NUMBERS AND SYMBOLS',
+    'ONLY ADD PEOPLE YOU KNOW IN REAL LIFE',
+    'TELL A TRUSTED ADULT IF SOMETHING FEELS WRONG',
+    'PRIVATE INFORMATION SHOULD ALWAYS STAY PRIVATE'
   ];
   const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
   function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
   function pick(arr) { return arr[randInt(0, arr.length - 1)]; }
 
-  // Door 1: arithmetic sequence. First term 1-10, common difference 2-6.
-  // The blank is the 5th or 6th term, so 4 or 5 terms are shown before it.
+  // Door 1: arithmetic sequence. First term 1-15, common difference 3-9.
+  // The blank is the 4th, 5th or 6th term, so fewer terms may be shown before it than before.
   function makeArithmetic() {
-    const first = randInt(1, 10), diff = randInt(2, 6), blankPos = pick([5, 6]);
+    const first = randInt(1, 15), diff = randInt(3, 9), blankPos = pick([4, 5, 6]);
     const terms = [];
     for (let i = 1; i < blankPos; i++) terms.push(first + diff * (i - 1));
     const answer = first + diff * (blankPos - 1);
@@ -465,12 +477,10 @@ const VaultCore = (function () {
     };
   }
 
-  // Door 2: geometric sequence. First term 1-5, ratio 2-4.
-  // Blank is the 5th or 6th term; the 6th is only used while the numbers stay friendly (<= 3000).
+  // Door 2: geometric sequence. First term 1-6, ratio 2-5.
+  // Blank is the 4th or 5th term; larger ratios and first terms make the final jump a real multiplication.
   function makeGeometric() {
-    const first = randInt(1, 5), ratio = randInt(2, 4);
-    let blankPos = pick([5, 6]);
-    if (first * Math.pow(ratio, 5) > 3000) blankPos = 5;
+    const first = randInt(1, 6), ratio = randInt(2, 5), blankPos = pick([4, 5]);
     const terms = [];
     for (let i = 1; i < blankPos; i++) terms.push(first * Math.pow(ratio, i - 1));
     const answer = first * Math.pow(ratio, blankPos - 1);
@@ -484,30 +494,65 @@ const VaultCore = (function () {
     };
   }
 
-  // Door 3: A=1 ... Z=26 substitution, numbers separated by dashes so "1-2" can never read as "12".
-  function letterToNumber(ch) { return ch.charCodeAt(0) - 64; }
-  function numbersToWord(nums) { return nums.map(function (n) { return ALPHABET[n - 1] || '?'; }).join(''); }
-  function makeSubstitution() {
-    const word = pick(WORDS);
-    const code = word.split('').map(letterToNumber);
+  // Door 3: a growing chain (Fibonacci-style) — each number is the sum of the two before it.
+  // A different rule than doors 1-2, so students can't assume every door is add/multiply.
+  function makeFibonacci() {
+    const a = randInt(1, 9), b = randInt(1, 9), blankPos = pick([5, 6]);
+    const seq = [a, b];
+    while (seq.length < blankPos) seq.push(seq[seq.length - 1] + seq[seq.length - 2]);
+    const terms = seq.slice(0, blankPos - 1), answer = seq[blankPos - 1];
     return {
-      type: 'sub', kind: 'word', word, code, display: code.join('-'), answer: word,
-      title: 'Door 3 · The Letter Code',
-      prompt: 'Each number stands for a letter: A = 1, B = 2 … Z = 26. Decode the word.',
-      hint: 'Find each number in the key. ' + code[0] + ' is the letter ' + word[0] + ', so the word starts with ' + word[0] + '.',
+      type: 'fib', kind: 'number', terms, answer: String(answer),
+      title: 'Door 3 · The Growing Chain',
+      prompt: 'Find the missing number. Each number is the sum of the two numbers right before it.',
+      hint: 'Add the last two numbers: ' + terms[terms.length - 2] + ' + ' + terms[terms.length - 1] + '. Every number in the chain is built that way.',
+      reveal: "The missing number was " + answer + " (it's the sum of the two numbers before it).",
+      placeholder: 'Missing number'
+    };
+  }
+
+  // Door 4: A=1 ... Z=26 substitution over a short PHRASE, numbers separated by dashes so
+  // "1-2" can never read as "12". A 0 marks the space between words.
+  function letterToNumber(ch) { return ch.charCodeAt(0) - 64; }
+  function numbersToWord(nums) { return nums.map(function (n) { return n === 0 ? ' ' : (ALPHABET[n - 1] || '?'); }).join(''); }
+  function makeSubstitution() {
+    const phrase = pick(PHRASES);
+    const code = phrase.split('').map(function (ch) { return ch === ' ' ? 0 : letterToNumber(ch); });
+    return {
+      type: 'sub', kind: 'sentence', phrase, code, display: code.join('-'), answer: phrase,
+      title: 'Door 4 · The Secret Phrase',
+      prompt: 'Each number stands for a letter: A = 1, B = 2 … Z = 26. A 0 means a space between words. Decode the phrase.',
+      hint: 'Find each number in the key below. ' + code[0] + ' is the letter ' + phrase[0] + ', so the phrase starts with ' + phrase[0] + '.',
+      reveal: 'The phrase was ' + phrase + '.',
+      placeholder: 'Decoded phrase'
+    };
+  }
+
+  // Door 5: Atbash cipher — the alphabet is mirrored, A<->Z, B<->Y, and so on. No shift number to
+  // read off, so students must apply the rule (given in the prompt and the key) letter by letter.
+  function atbashChar(ch) { return ALPHABET[25 - ALPHABET.indexOf(ch)]; }
+  function atbashText(text) { return String(text).toUpperCase().replace(/[A-Z]/g, atbashChar); }
+  function makeAtbash() {
+    const word = pick(MIRROR_WORDS), encoded = atbashText(word);
+    return {
+      type: 'atbash', kind: 'word', word, encoded, answer: word,
+      title: 'Door 5 · The Mirror Code',
+      prompt: 'This code mirrors the alphabet: A swaps with Z, B swaps with Y, C swaps with X, and so on. Use the mirror key to decode the word.',
+      hint: 'The first letter is ' + encoded[0] + ', and its mirror partner is ' + word[0] + '. Match every letter with its partner the same way.',
       reveal: 'The word was ' + word + '.',
       placeholder: 'Decoded word'
     };
   }
 
-  // Door 4: Caesar cipher. Letters are shifted FORWARD by `shift` to encode, so decoding shifts back.
+  // Final door: Caesar cipher over a longer safety tip. Letters are shifted FORWARD by `shift`
+  // to encode, so decoding shifts back. Shift 4-12 (wider than the other letter codes here).
   function shiftText(text, shift) {
     return String(text).replace(/[A-Z]/g, function (ch) {
       return ALPHABET[(((ch.charCodeAt(0) - 65 + shift) % 26) + 26) % 26];
     });
   }
   function makeCaesar() {
-    const tip = pick(TIPS), shift = randInt(3, 8);
+    const tip = pick(TIPS), shift = randInt(4, 12);
     const encoded = shiftText(tip, shift);
     const example = [0, 1, 2].map(function (i) { return ALPHABET[(i + shift) % 26] + ' → ' + ALPHABET[i]; }).join(', ');
     return {
@@ -520,7 +565,9 @@ const VaultCore = (function () {
     };
   }
 
-  function makeDoors() { return [makeArithmetic(), makeGeometric(), makeSubstitution(), makeCaesar()]; }
+  function makeDoors() {
+    return [makeArithmetic(), makeGeometric(), makeFibonacci(), makeSubstitution(), makeAtbash(), makeCaesar()];
+  }
 
   // ---- answer checking (forgiving about case, spaces and punctuation) ----
   function parseNumber(s) {
@@ -580,9 +627,9 @@ const VaultCore = (function () {
   }
 
   return {
-    WORDS, TIPS, ALPHABET,
-    makeArithmetic, makeGeometric, makeSubstitution, makeCaesar, makeDoors,
-    shiftText, numbersToWord, parseNumber, normalizeText, check,
+    PHRASES, MIRROR_WORDS, TIPS, ALPHABET,
+    makeArithmetic, makeGeometric, makeFibonacci, makeSubstitution, makeAtbash, makeCaesar, makeDoors,
+    shiftText, atbashText, numbersToWord, parseNumber, normalizeText, check,
     makeVaultCode, parseVaultCode, cleanName
   };
 })();
@@ -602,7 +649,7 @@ const VaultCore = (function () {
   const REDUCED = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   const UNLOCK_DELAY = 1500;   // ms before auto-advancing after a correct answer
   const SKIP_DELAY = 3200;     // a little longer so the revealed answer can be read
-  const TOTAL_DOORS = 4;
+  const TOTAL_DOORS = 6;
 
   const state = {
     mode: 'solo', teams: [], startedAt: 0, timerId: null, elapsed: 0,
@@ -668,7 +715,7 @@ const VaultCore = (function () {
       '<header class="panel-head">' +
         '<div class="team-badge">' + esc(team.emoji) + ' ' + esc(team.name) + '</div>' +
         '<div class="progress"><span class="progress-text"></span><div class="locks">' +
-          [0, 1, 2, 3].map(i => '<span class="lock" data-i="' + i + '">🔒</span>').join('') +
+          Array.from({ length: TOTAL_DOORS }, (_, i) => i).map(i => '<span class="lock" data-i="' + i + '">🔒</span>').join('') +
         '</div></div>' +
       '</header>' +
       '<div class="door-wrap">' +
@@ -701,10 +748,17 @@ const VaultCore = (function () {
         p.terms.map(t => '<span class="chip">' + t + '</span>').join('<span class="sep">,</span>') +
         '<span class="sep">,</span><span class="chip blank" aria-label="missing number">?</span></div>';
     } else if (p.type === 'sub') {
-      display = '<div class="seq" aria-label="Coded word ' + esc(p.display) + '">' +
-        p.code.map(n => '<span class="chip">' + n + '</span>').join('<span class="sep">–</span>') + '</div>';
-      extra = '<div class="strip-caption">Key: letter on top, its number below</div>' +
+      display = '<div class="seq" aria-label="Coded phrase ' + esc(p.display) + '">' +
+        p.code.map(n => n === 0
+          ? '<span class="chip space" aria-label="space">␣</span>'
+          : '<span class="chip">' + n + '</span>'
+        ).join('<span class="sep">–</span>') + '</div>';
+      extra = '<div class="strip-caption">Key: letter on top, its number below · a 0 means a space</div>' +
         '<div class="keystrip">' + C.ALPHABET.split('').map((L, i) => '<span><b>' + L + '</b>' + (i + 1) + '</span>').join('') + '</div>';
+    } else if (p.type === 'atbash') {
+      display = '<div class="cipher" aria-label="Coded word">' + esc(p.encoded) + '</div>';
+      extra = '<div class="strip-caption">Mirror key: letter on top, its mirror partner below</div>' +
+        '<div class="keystrip">' + C.ALPHABET.split('').map(L => '<span><b>' + L + '</b>' + C.atbashText(L) + '</span>').join('') + '</div>';
     } else {
       display = '<div class="cipher" aria-label="Coded message">' + esc(p.encoded) + '</div>' +
         '<div class="shift-badge">Shift used: ' + p.shift + '</div>';
@@ -883,7 +937,7 @@ const VaultCore = (function () {
       : 'Team ' + state.teams[0].name + ' cracked the vault in ' + fmtTime(state.elapsed) + '!';
     $('#results').innerHTML = ranked.map((t, i) => {
       const finished = t.doneAt !== null;
-      const tip = t.doors[3].tip;
+      const tip = t.doors[TOTAL_DOORS - 1].tip;
       return '<div class="card result' + (finished ? '' : ' dnf') + '">' +
         '<div class="medal">' + (state.mode === 'race' ? (finished ? (medals[i] || '🏅') : '⏳') : '🏆') + '</div>' +
         '<div class="who">' + esc(t.emoji) + ' ' + esc(t.name) + '</div>' +
