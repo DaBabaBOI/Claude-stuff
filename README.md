@@ -203,6 +203,25 @@ draw shoots flat without any separate trajectory code. The draw meter on the HUD
 damage the shot would do right now, and the crosshair tightens as the string comes back.
 Swinging the sword abandons a half-drawn arrow.
 
+The string is real: two segments running from each limb tip to a shared nocking point that
+follows the draw hand, with a brown-and-white arrow nocked on it.
+
+```
+        tip ●
+             ╲
+              ●── nock, sitting on the draw hand (5.8 cm, measured in the test suite)
+             ╱
+        tip ●
+```
+
+Landing the hand there is solved, not eyeballed. With shoulders on Euler order `YXZ` and
+the arm hanging down its local −Y, setting `rotation.x ≈ π/2` lays the arm horizontal and
+`rotation.z` swings it across the body, putting the hand at
+`shoulder + 0.7 · (sin z, ~0, −cos z)`. The bow grip sits at about `(0.33, 1.42, −0.69)`
+in body space and the nocking point half a metre behind it — from the left shoulder those
+are `z = 0.75` and `z = 1.32`, both exactly one arm length away, so the hand reaches the
+bow at rest and the anchor at full draw.
+
 ## Zombies
 
 Waves spawn on a ring around you and close in. Each zombie runs one small state machine
@@ -305,6 +324,7 @@ src/
     MeleeWeapon.js          swing state machine + arc hit detection
     RangedWeapon.js         ammo, reload, projectile spawning
     ProjectileSystem.js     ballistic arrows, gravity, swept collision, ground stick
+                            (arrow art is shared with the bow's nocked arrow)
     weapons.config.js       stat table (Phase 1: sword + bow only)
   systems/
     InputManager.js         keyboard/mouse/gamepad → moveVector + aimYaw
@@ -323,7 +343,7 @@ tools/
 mouse clicks, and waits on game state rather than wall-clock sleeps (headless software
 rendering runs at ~10 fps, so fixed sleeps mean nothing).
 
-**38/38 checks passing**, covering: boot and render; WASD movement; mouse aim; melee swing
+**39/39 checks passing**, covering: boot and render; WASD movement; mouse aim; melee swing
 and damage numbers; bow draw, release, travel, arc height, ground stick and hit; reload;
 player hit reaction; zombie chase, telegraph, strike, mid-windup movement and death;
 skeleton draw, loose, damage and range keeping; team-correct arrows; charge scaling for
@@ -340,8 +360,9 @@ PASS  skeleton keeps its distance instead of closing  (held 9.0 m, min range 4.5
 PASS  enemy arrows do not hit other enemies  (dummy 200/200)
 PASS  zombies keep closing in during their windup  (moved 0.21 m mid-windup at x0.62 speed)
 PASS  forward is faster than strafing, strafing faster than backpedalling  (1.00 / 0.78 / 0.55)
+PASS  the draw hand grips the actual bowstring  (hand to nocking point: 0.058 m)
 
-38/38 checks passed
+39/39 checks passed
 ```
 
 ## Deliberately not built yet

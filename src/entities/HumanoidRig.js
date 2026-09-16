@@ -135,6 +135,12 @@ export class HumanoidRig {
     this.handSocket.rotation.x = GRIP_CARRY;
     this.shoulderR.add(this.handSocket);
 
+    // Draw hand: not a weapon mount, but the string has to be gripped by
+    // something, so the bow model is told where this point is each frame.
+    this.drawHandSocket = new THREE.Object3D();
+    this.drawHandSocket.position.set(0, -ARM_LENGTH - 0.02, 0);
+    this.shoulderL.add(this.drawHandSocket);
+
     this.backSocket = new THREE.Object3D();
     // Slung diagonally: grip at the lower right of the back, weapon extending
     // up and to the left. Pushed clear of the torso so nothing intersects it.
@@ -145,6 +151,7 @@ export class HumanoidRig {
 
     this.walkPhase = 0;
     this.flash = 0;
+    this._drawHandWorld = new THREE.Vector3();
     /** Grip tilt of the held weapon, damped between poses. */
     this.gripTilt = GRIP_CARRY;
     this._baseEmissive = new THREE.Color(0x000000);
@@ -266,11 +273,23 @@ export class HumanoidRig {
       targetArmRX = 1.45;
       targetArmRZ = -0.05;
       targetArmRY = -0.12;
-      // The draw hand travels BACK to the ear as the string is pulled. Moving
-      // it forward instead is the classic backwards-bow mistake: it reads as
-      // pushing the string away from you.
-      targetArmLX = lerp(1.4, 0.4, drawAmount);
-      targetArmLZ = lerp(-0.15, -0.75, drawAmount);
+      /**
+       * The draw hand has to end up ON the string, not somewhere near it, so
+       * these angles are solved rather than eyeballed.
+       *
+       * With shoulders on Euler order YXZ and the arm hanging down its local
+       * -Y, setting rotation.x to ~PI/2 lays the arm horizontal; rotation.z
+       * then swings it across the body, and the hand lands at
+       *
+       *     shoulder + 0.7 * (sin z, ~0, -cos z)
+       *
+       * The bow grip sits at about (0.33, 1.42, -0.69) in body space, and the
+       * nocking point half a metre behind it at (0.33, 1.42, -0.19). From the
+       * left shoulder at (-0.34, 1.42, 0) those are z = 0.75 and z = 1.32 —
+       * one arm length away, so the hand reaches both exactly.
+       */
+      targetArmLX = lerp(1.45, 1.4, drawAmount);
+      targetArmLZ = lerp(0.75, 1.32, drawAmount);
       twist = lerp(0.1, 0.34, drawAmount);
     } else if (state === 'attack-ranged') {
       const p = clamp(attackProgress, 0, 1);
@@ -281,13 +300,13 @@ export class HumanoidRig {
       targetArmRZ = -0.05;
       targetArmRY = -0.12;
       if (p < 0.3) {
-        const u = p / 0.3;                     // follow-through past the ear
-        targetArmLX = lerp(0.4, 0.15, u);
-        targetArmLZ = lerp(-0.75, -0.85, u);
+        const u = p / 0.3;                     // follow-through past the anchor
+        targetArmLX = lerp(1.4, 1.35, u);
+        targetArmLZ = lerp(1.32, 1.5, u);
       } else {
         const u = easeOut((p - 0.3) / 0.7);    // hand comes back to the bow
-        targetArmLX = lerp(0.15, 1.4, u);
-        targetArmLZ = lerp(-0.85, -0.15, u);
+        targetArmLX = lerp(1.35, 1.45, u);
+        targetArmLZ = lerp(1.5, 0.75, u);
       }
       twist = 0.22;
     }
@@ -328,6 +347,21 @@ export class HumanoidRig {
       this.body.position.y = bob - 0.1 * p;
     } else if (this.root.rotation.x !== 0) {
       this.root.rotation.x = 0;
+    }
+
+    // ---- Bowstring ---------------------------------------------------------
+    // The held bow, if it has a string, gets told where the draw hand actually
+    // is, so the string bends around the hand instead of the hand hovering
+    // near a straight cylinder.
+    const held = this.handSocket.children[0];
+    if (held?.setNock) {
+      const drawing = state === 'draw-ranged';
+      if (drawing) {
+        this.drawHandSocket.getWorldPosition(this._drawHandWorld);
+        held.setNock(this._drawHandWorld, drawAmount);
+      } else {
+        held.setNock(null, 0);
+      }
     }
 
     // ---- Flash ------------------------------------------------------------

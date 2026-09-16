@@ -358,6 +358,34 @@ try {
   check('a charged arrow actually lands harder', shots.full > shots.tap && shots.tap > 0,
     `tap ${shots.tap} vs full draw ${shots.full}`);
 
+  // The draw hand must be ON the string, not near it.
+  const grip = await page.evaluate(async () => {
+    const g = window.__game;
+    const bow = g.player.equippedRanged;
+    bow.nextReadyAt = 0;
+    bow.ammo = bow.ammoCapacity;
+    g.player.drawRanged(g.state);
+    for (let i = 0; i < 90 && g.player.drawStrength < 0.99; i++) {
+      await new Promise((r) => requestAnimationFrame(r));
+    }
+    const rig = g.player.rig;
+    const model = rig.handSocket.children[0];
+    const hand = new (g.state.player.position.constructor)();
+    rig.drawHandSocket.getWorldPosition(hand);
+    const nock = model.userData.nockWorld;
+    const arrowVisible = model.children[0].children.some(
+      (c) => c.visible && c.type === 'Group'
+    ) || model.children[0].children.length > 0;
+    bow.cancelDraw();
+    return {
+      gap: nock ? hand.distanceTo(nock) : null,
+      draw: g.player.drawStrength,
+      arrowVisible,
+    };
+  });
+  check('the draw hand grips the actual bowstring', grip.gap !== null && grip.gap < 0.3,
+    `hand to nocking point: ${grip.gap === null ? 'no string' : grip.gap.toFixed(3) + ' m'}`);
+
   // --- 10. skeleton archers --------------------------------------------------
   await page.evaluate(() => {
     const g = window.__game;

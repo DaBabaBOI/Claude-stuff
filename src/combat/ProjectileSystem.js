@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { closestPointOnSegmentXZ, clamp } from '../mathUtils.js';
+import { closestPointOnSegmentXZ } from '../mathUtils.js';
+import { createArrowModel } from '../entities/weaponModels.js';
 
 const PROJECTILE_RADIUS = 0.14;
 const STUCK_LIFETIME = 3;
@@ -40,33 +41,13 @@ export const MAX_ARC_APEX = 0.5;
 export class ProjectileSystem {
   constructor(scene) {
     this.scene = scene;
-
-    const shaft = new THREE.CylinderGeometry(PROJECTILE_RADIUS * 0.4, PROJECTILE_RADIUS * 0.4, 0.8, 6);
-    const head = new THREE.ConeGeometry(PROJECTILE_RADIUS * 0.8, 0.22, 6);
-    head.translate(0, 0.5, 0);
-    // Align both along local -Z so mesh.lookAt() points the arrow where it flies.
-    shaft.rotateX(-Math.PI / 2);
-    head.rotateX(-Math.PI / 2);
-    this.shaftGeometry = shaft;
-    this.headGeometry = head;
-
-    this.shaftMaterial = new THREE.MeshStandardMaterial({ color: 0xd9c89a, roughness: 0.7 });
-    this.headMaterial = new THREE.MeshStandardMaterial({
-      color: 0xffeeb0,
-      emissive: 0xffa02a,
-      emissiveIntensity: 0.8,
-      roughness: 0.4,
-    });
-
     this._aim = new THREE.Vector3();
   }
 
   buildMesh() {
-    const group = new THREE.Group();
-    group.add(new THREE.Mesh(this.shaftGeometry, this.shaftMaterial));
-    group.add(new THREE.Mesh(this.headGeometry, this.headMaterial));
-    group.children[0].castShadow = true;
-    return group;
+    // Same art as the arrow nocked on the bow, so what you loose is what you
+    // were holding: brown shaft, white head and fletching.
+    return createArrowModel();
   }
 
   /** @param {import('../GameState.js').GameState} state */
