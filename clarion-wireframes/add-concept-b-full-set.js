@@ -1,10 +1,14 @@
-// Clarion AI wireframes: the FULL Concept B set (Class tabs), applied consistently across the
-// whole product, not just the Dashboard: AI Helper, Discussions, and Rewards all get a
-// class-tab layout as their throughline idea, instead of the time-based (Concept C) or
-// status-based (Concept A) organisation.
-// - Screen 12 (Dashboard, Concept B sketch) already exists: this only ADDS pins to it by finding
-//   its elements by name, it does not rebuild or move anything on that screen.
-// - Screens 21-23 are built fresh with pins baked in, 6px inside their card from the start.
+// Clarion AI wireframes: REVISED full Concept B set (class-first), now with a genuinely
+// different layout per screen instead of the same pill-tab bar relabelled three times:
+//   21 AI Helper   -> pill tabs kept (the one case tabs actually fit best: a chat is naturally
+//                     a single open conversation, switching it is a deliberate tab-like action)
+//   22 Discussions -> a left-hand class list, like the sidebar channel list on the main
+//                     Discussions screen, instead of top tabs
+//   23 Road to Glory -> a grid of class cards you scan and compare at a glance, instead of
+//                       one tab open at a time
+// - Screen 12 (Dashboard, Concept B sketch) already exists: this only ADDS pins to it by
+//   finding its elements by name, it does not rebuild or move anything on that screen.
+// - Screens 21-23 are rebuilt fresh with pins baked in, 6px inside their card from the start.
 // Purely additive to the rest of the file: does not touch screens 01-20 or their panels.
 // Run in Figma with the free "Scripter" plugin (Plugins > Scripter), on the "Wireframes" page,
 // in the "Clarion AI, Wireframes" file (not Socratree Design).
@@ -140,7 +144,7 @@ function shell(root,active){
   const content=al(body,'VERTICAL',{name:'Content',px:32,py:32,gap:24,fw:true,fh:true});
   return content;
 }
-// shared class-tabs row: pills, one active
+// shared class-tabs row, used only on the AI Helper screen now
 function classTabs(parent,active,names){
   const tabs=al(parent,'HORIZONTAL',{name:'Class tabs',gap:8,fw:true});
   const tabFrames=[];
@@ -149,9 +153,12 @@ function classTabs(parent,active,names){
 }
 
 // --- clean slate for screens 21-23 and for screen 12's pins/panel ---
-const NAMES=['21 · AI Helper, Class tabs (Concept B)','22 · Discussions, Class tabs (Concept B)','23 · Road to Glory, Class tabs (Concept B)'];
+const NAMES=['21 · AI Helper, Class tabs (Concept B)','22 · Discussions, Class list (Concept B)','23 · Road to Glory, Class grid (Concept B)'];
 const toRemove=[];
 for(const n of NAMES) toRemove.push(n,'Label '+n,'Sub '+n,'Spec · '+n);
+// also clear OLD names from before this revision, so a re-run does not leave a duplicate
+toRemove.push('22 · Discussions, Class tabs (Concept B)','Label 22 · Discussions, Class tabs (Concept B)','Sub 22 · Discussions, Class tabs (Concept B)','Spec · 22 · Discussions, Class tabs (Concept B)');
+toRemove.push('23 · Road to Glory, Class tabs (Concept B)','Label 23 · Road to Glory, Class tabs (Concept B)','Sub 23 · Road to Glory, Class tabs (Concept B)','Spec · 23 · Road to Glory, Class tabs (Concept B)');
 for(const n of page.children.filter(c=>toRemove.includes(c.name))) n.remove();
 
 // ================= pins onto the EXISTING screen 12 (Dashboard, Concept B sketch) =================
@@ -178,7 +185,7 @@ for(const n of page.children.filter(c=>toRemove.includes(c.name))) n.remove();
   const root=newRoot(NAME,X,Y);
   const content=shell(root,'AI Helper');
 
-  const chdr=al(content,'VERTICAL',{gap:4,fw:true}); text(chdr,'Study Helper','Bold',24,K); text(chdr,'A separate conversation per class, so switching subjects does not mean scrolling past unrelated messages.','Regular',13,G3);
+  const chdr=al(content,'VERTICAL',{gap:4,fw:true}); text(chdr,'Study Helper','Bold',24,K); text(chdr,'A separate conversation per class, so switching subjects does not mean scrolling past unrelated messages. A chat is naturally one open thread at a time, the one screen where a tab is the most direct fit.','Regular',13,G3);
   const {tabs,tabFrames}=classTabs(content,'Biology 9B',['Biology 9B','Maths 9','English 9','History 9']);
 
   const chatCard=al(content,'VERTICAL',{name:'Class chat card',gap:12,fw:true,fh:true,px:20,py:20,stroke:K,r:12,fill:W});
@@ -196,28 +203,32 @@ for(const n of page.children.filter(c=>toRemove.includes(c.name))) n.remove();
 
   specPanel(NAME,[
    {rows:[
-    'Header: "Study Helper" 24px Bold, subtitle sets the Concept B framing directly, a separate conversation per class instead of one shared thread.',
-    'Class tabs: pill row, 99px radius each, 16px/10px padding, the active class filled #000000 with white text, same tab component used on every Concept B screen.',
+    'Header: "Study Helper" 24px Bold, subtitle explains why this is the one Concept B screen that keeps tabs, a chat is naturally one open conversation at a time.',
+    'Class tabs: pill row, 99px radius each, 16px/10px padding, the active class filled #000000 with white text.',
     'Class chat card: fills the remaining width and height, corner radius 12px, 1.5px stroke, 20px padding; header names the class and how many messages exist in it.',
-    'AI message bubble: 32px avatar, #F0F0F0 fill, 12px radius, 14px padding, the reply is scoped to only what that class needs, no mention of Maths or English tasks here.',
-    'Ask bar: pinned to the bottom of the card, 99px radius pill, 1.5px stroke; placeholder text names the active class directly, "Ask about Biology 9B...".',
+    'AI message bubble: 32px avatar, #F0F0F0 fill, 12px radius, 14px padding, scoped to only what that class needs.',
+    'Ask bar: pinned to the bottom of the card, 99px radius pill, 1.5px stroke; placeholder text names the active class directly.',
    ]},
   ], 100+20*1640, 220+1024+40, 1440);
 }
 
-// ================= 22 · Discussions, Class tabs (Concept B) =================
+// ================= 22 · Discussions, Class list (Concept B) =================
 {
-  const NAME='22 · Discussions, Class tabs (Concept B)', X=100+21*1640, Y=220;
+  const NAME='22 · Discussions, Class list (Concept B)', X=100+21*1640, Y=220;
   screenLabel(NAME,X,Y);
   const root=newRoot(NAME,X,Y);
   const content=shell(root,'Discussions');
+  content.layoutMode='HORIZONTAL'; content.itemSpacing=0; content.paddingTop=0; content.paddingBottom=0; content.paddingLeft=0; content.paddingRight=0;
 
-  const hdr=al(content,'VERTICAL',{gap:4,fw:true}); text(hdr,'Discussions','Bold',24,K); text(hdr,'Same tab bar as the Dashboard and AI Helper, so switching classes feels identical everywhere in the product.','Regular',13,G3);
-  const {tabs,tabFrames}=classTabs(content,'Biology 9B',['Biology 9B','Maths 9','English 9','History 9']);
+  const classList=al(content,'VERTICAL',{name:'Class list',w:220,fh:true,px:16,py:20,gap:4,fill:G1});
+  text(classList,'YOUR CLASSES','Semi Bold',11,G3);
+  const classNames=['Biology 9B','Maths 9','English 9','History 9'];
+  const classRows=[];
+  for(const c of classNames){ const a=c==='Biology 9B'; const row=al(classList,'HORIZONTAL',{name:'Class/'+c,px:10,py:10,r:8,fill:a?K:null,fw:true}); text(row,c,'Semi Bold',14,a?W:K); classRows.push(row); }
 
-  const feedCard=al(content,'VERTICAL',{name:'Class feed card',gap:12,fw:true,fh:true,px:20,py:20,stroke:K,r:12,fill:W,clip:true});
-  const fh=al(feedCard,'HORIZONTAL',{fw:true,justify:'SPACE_BETWEEN',align:'CENTER'}); text(fh,'# Q&A, Biology 9B','Semi Bold',18,K); chip(fh,'Pinned (1)');
-  divider(feedCard);
+  const feedCol=al(content,'VERTICAL',{name:'Feed column',gap:16,fw:true,fh:true,px:20,py:20});
+  const fh=al(feedCol,'HORIZONTAL',{fw:true,justify:'SPACE_BETWEEN',align:'CENTER'}); text(fh,'# Q&A, Biology 9B','Bold',22,K); chip(fh,'Pinned (1)');
+  const feedCard=al(feedCol,'VERTICAL',{name:'Feed card',gap:12,fw:true,fh:true,px:20,py:16,stroke:K,r:12,fill:W,clip:true});
   function post(parent,who,role,when,body){
     const r=al(parent,'HORIZONTAL',{name:'Post',gap:12,fw:true});
     circleEl(r,32);
@@ -233,66 +244,55 @@ for(const n of page.children.filter(c=>toRemove.includes(c.name))) n.remove();
   const comp=al(feedCard,'HORIZONTAL',{name:'Composer',gap:10,fw:true,align:'CENTER'}); circleEl(comp,28);
   const inp=al(comp,'HORIZONTAL',{name:'Input',px:12,py:8,gap:10,fw:true,stroke:K,r:12,align:'CENTER'}); text(inp,'Reply in Biology 9B...','Regular',13,G3,{fw:true}); btn(inp,'Post',{primary:true,py:6,s:13});
 
-  pin(hdr,1); pin(tabs,2); pin(feedCard,3); pin(p1,4); pin(p2,5); pin(inp,6);
+  pin(classList,1); pin(classRows[0],2); pin(fh,3); pin(feedCard,4); pin(p1,5); pin(inp,6);
 
   specPanel(NAME,[
    {rows:[
-    'Header: "Discussions" 24px Bold, subtitle notes that the same tab component appears on the Dashboard, AI Helper and here, so the pattern is learned once.',
-    'Class tabs: identical styling and behaviour to the Dashboard and AI Helper Concept B screens.',
-    'Class feed card: fills the remaining height, corner radius 12px, 1.5px stroke, clips content; header shows the channel name and a Pinned count for that class specifically.',
-    'Teacher post: 32px avatar, Teacher chip (solid black), same row pattern as the main Discussions screen but slightly tightened (13px title instead of 14px) since the card has less vertical room with tabs above it.',
-    'Student post: same row pattern, no Teacher chip.',
-    'Composer: pinned to the bottom of the card, placeholder names the active class, "Reply in Biology 9B...", so it is always clear which class a reply goes to.',
+    'Class list: fixed width 220px, #F0F0F0 fill, 16px padding; a plain vertical list of class names, the active class filled black with white text, deliberately the same left-column pattern the main Discussions screen already uses for channels, applied here to classes instead.',
+    'Class row: 8px radius, 10px padding, no icons or unread badges, kept as plain as possible since the point of this screen is comparing it against Concept A\'s lanes and Concept C\'s strip, not adding new chrome.',
+    'Feed header: "# Q&A, Biology 9B" 22px Bold plus a Pinned count chip, sits above the card rather than inside it since the class list on the left already carries the navigation role a tab bar would.',
+    'Feed card: fills the remaining height, corner radius 12px, 1.5px stroke, 16px padding, clips content.',
+    'Teacher post: 32px avatar, black Teacher chip, same row pattern as the main Discussions screen.',
+    'Composer: pinned to the bottom of the card, placeholder names the active class.',
    ]},
   ], 100+21*1640, 220+1024+40, 1440);
 }
 
-// ================= 23 · Road to Glory, Class tabs (Concept B) =================
+// ================= 23 · Road to Glory, Class grid (Concept B) =================
 {
-  const NAME='23 · Road to Glory, Class tabs (Concept B)', X=100+22*1640, Y=220;
+  const NAME='23 · Road to Glory, Class grid (Concept B)', X=100+22*1640, Y=220;
   screenLabel(NAME,X,Y);
   const root=newRoot(NAME,X,Y);
   const content=shell(root,'Rewards');
 
   const hdr=al(content,'HORIZONTAL',{name:'Header',fw:true,justify:'SPACE_BETWEEN',align:'CENTER'});
-  const hl=al(hdr,'VERTICAL',{gap:4}); text(hl,'Road to Glory','Bold',28,K); text(hl,'Points and leaderboards are shown per class, since a class is also the unit teachers verify work in.','Regular',14,G3);
+  const hl=al(hdr,'VERTICAL',{gap:4}); text(hl,'Road to Glory','Bold',28,K); text(hl,'All your classes at once, side by side, rather than one tab open at a time, since comparing them is the point of this screen.','Regular',14,G3);
   chip(hdr,'240 pts total, verified');
 
-  const {tabs,tabFrames}=classTabs(content,'Biology 9B',['Biology 9B','Maths 9','English 9','History 9']);
-
-  const main=al(content,'HORIZONTAL',{name:'Main',gap:24,fw:true,fh:true});
-  const left=al(main,'VERTICAL',{name:'Class rewards card',gap:16,fw:true,fh:true,px:20,py:20,stroke:K,r:12,fill:W});
-  const ch=al(left,'HORIZONTAL',{fw:true,justify:'SPACE_BETWEEN',align:'CENTER'}); text(ch,'Biology 9B','Semi Bold',20,K); text(ch,'90 pts earned in this class','Regular',13,G3);
-  divider(left);
-  text(left,'Badges from this class','Semi Bold',15,K);
-  const bgrid=al(left,'HORIZONTAL',{name:'Badge grid',gap:12,fw:true});
-  for(const [name,unlocked] of [['Perfect week',true],['Class helper',false]]){
-    const tile=al(bgrid,'VERTICAL',{name:'Badge/'+name,px:14,py:14,gap:6,align:'CENTER',justify:'CENTER',r:2,fw:true,fill:unlocked?W:G1,stroke:K,dash:unlocked?null:[4,3]});
-    text(tile,name,'Semi Bold',13,K,{align:'CENTER'});
+  const grid=al(content,'VERTICAL',{name:'Class grid',gap:16,fw:true,fh:true});
+  const row1=al(grid,'HORIZONTAL',{gap:16,fw:true,fh:true});
+  const row2=al(grid,'HORIZONTAL',{gap:16,fw:true,fh:true});
+  function classCard(parent,name,pts,badges,open){
+    const c=al(parent,'VERTICAL',{name:'Class/'+name,gap:10,fw:true,fh:true,px:18,py:18,stroke:K,r:12,fill:open?W:W,sw:open?2:1.5});
+    const ch=al(c,'HORIZONTAL',{fw:true,justify:'SPACE_BETWEEN',align:'CENTER'}); text(ch,name,'Semi Bold',16,K); if(open) chip(ch,'Open',{dark:true});
+    text(c,pts+' pts earned here','Bold',20,K);
+    text(c,badges+' badges from this class','Regular',12,G3);
+    btn(c,'View leaderboard',{py:8,s:12});
+    return c;
   }
+  const cardA=classCard(row1,'Biology 9B',90,1,true);
+  classCard(row1,'Maths 9',65,0,false);
+  classCard(row2,'English 9',50,1,false);
+  classCard(row2,'History 9',35,0,false);
 
-  const right=al(main,'VERTICAL',{name:'Right column',w:340,gap:16,fh:true});
-  const lead=al(right,'VERTICAL',{name:'Class leaderboard card',px:20,py:16,gap:10,fw:true,stroke:K,r:12,fill:W});
-  text(lead,'Biology 9B leaderboard','Semi Bold',16,K);
-  for(const [rank,name,score,me] of [['1','Ananya R.',95,false],['2','Prithu S. (you)',90,true]]){
-    const r=al(lead,'HORIZONTAL',{name:'Leader row',gap:10,fw:true,align:'CENTER',px:me?8:0,py:me?6:0,r:8,stroke:me?K:null});
-    const rb=al(r,'HORIZONTAL',{w:26,h:26,r:99,fill:K,align:'CENTER',justify:'CENTER'}); text(rb,rank,'Bold',12,W);
-    circleEl(r,26); text(r,name,me?'Semi Bold':'Regular',14,K,{fw:true}); text(r,String(score),'Bold',14,K);
-  }
-  const info=al(right,'VERTICAL',{name:'Why verified card',px:20,py:16,gap:8,fw:true,stroke:K,r:12,fill:G1});
-  text(info,'Why per class?','Semi Bold',15,K);
-  text(info,'Your teacher only sees and verifies work for their own class, so points and rankings are scoped the same way.','Regular',13,K,{fw:true});
-
-  pin(hdr,1); pin(tabs,2); pin(left,3); pin(bgrid,4); pin(lead,5); pin(info,6);
+  pin(hdr,1); pin(grid,2); pin(cardA,3);
 
   specPanel(NAME,[
    {rows:[
-    'Header: "Road to Glory" 28px Bold, subtitle explains the rationale directly, points are grouped by class because verification itself happens per class.',
-    'Class tabs: identical styling to the other three Concept B screens.',
-    'Class rewards card: fills the remaining width and height, corner radius 12px, 1.5px stroke, 20px padding; header states the class and how many of the student\'s total points came from it specifically.',
-    'Badge grid: only badges earned in this class are shown, same tile styling as the main Rewards screen, 2px sharp radius, dashed stroke on the locked one.',
-    'Class leaderboard: scored on points earned in this class only, not the student\'s total, so the numbers are smaller than on the main Rewards screen and differ from class to class.',
-    'Why per class info card: a new explanatory note this concept needs that the others do not, since scoping points by class is a less obvious idea than a single site-wide total.',
+    'Header: "Road to Glory" 28px Bold, subtitle explains directly why this screen is a grid rather than tabs, comparing classes side by side is the point.',
+    'Class grid: 2 x 2 cards, 16px gap, each card fills equal width and height.',
+    'Class card: corner radius 12px, 1.5px stroke; the currently open class (Biology 9B) gets a slightly heavier 2px stroke and a black "Open" chip instead of a filled background, so the difference reads even in black and white without relying on colour.',
+    'Card content: points earned in that specific class at 20px Bold, a badge count, and a "View leaderboard" button, everything a student needs to compare classes without opening any of them.',
    ]},
   ], 100+22*1640, 220+1024+40, 1440);
 }
@@ -306,5 +306,5 @@ for(const t of page.findAllWithCriteria({types:['TEXT']})){
 }
 
 figma.viewport.scrollAndZoomIntoView(page.children);
-figma.notify('Done: Concept B full set. Pins added to screen 12, screens 21-23 built with pins. ' + dashCount + ' em dashes replaced.');
+figma.notify('Done: Concept B revised. Pins on screen 12, screens 21-23 rebuilt with distinct layouts. ' + dashCount + ' em dashes replaced.');
 return { ok: true };

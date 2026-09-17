@@ -1,11 +1,14 @@
-// Clarion AI wireframes: the FULL Concept A set (Status board), applied consistently across the
-// whole product, not just the Dashboard: AI Helper, Discussions, and Rewards all get a
-// status-lane layout as their throughline idea, instead of the time-based (Concept C) or
-// class-based (Concept B) organisation.
-// - Screen 11 (Dashboard, Concept A sketch) already exists: this only ADDS pins to it by finding
-//   its elements by name, it does not rebuild or move anything on that screen.
-// - Screens 18-20 are built fresh with pins baked in, 6px inside their card from the start.
-// Purely additive to the rest of the file: does not touch screens 01-17 or their panels.
+// Clarion AI wireframes: REVISED full Concept A set (status-first), now with a genuinely
+// different layout per screen instead of the same 4-lane board relabelled three times:
+//   18 AI Helper   -> a single priority-sorted list, urgency shown as a left accent bar
+//   19 Discussions -> the 4-lane board (kept: "needs reply/new/read/resolved" is a small
+//                     finite set of states, the one case lanes actually fit best)
+//   20 Road to Glory -> progress groups with a fill bar per group, "how close" instead of
+//                       a fixed category
+// - Screen 11 (Dashboard, Concept A sketch) already exists: this only ADDS pins to it by
+//   finding its elements by name, it does not rebuild or move anything on that screen.
+// - Screens 18-20 are rebuilt fresh with pins baked in, 6px inside their card from the start.
+// Purely additive to the rest of the file: does not touch screens 01-17, 21-23 or their panels.
 // Run in Figma with the free "Scripter" plugin (Plugins > Scripter), on the "Wireframes" page,
 // in the "Clarion AI, Wireframes" file (not Socratree Design).
 // Safe to re-run: it deletes its own previous output first, then rebuilds.
@@ -140,7 +143,7 @@ function shell(root,active){
   const content=al(body,'VERTICAL',{name:'Content',px:32,py:32,gap:24,fw:true,fh:true});
   return content;
 }
-// shared status-lane row: N lanes side by side, each a header + stacked cards
+// shared status-lane row, used only on the Discussions screen now
 function laneBoard(parent,lanes){
   const board=al(parent,'HORIZONTAL',{name:'Status board',gap:16,fw:true,fh:true});
   const laneFrames=[];
@@ -157,11 +160,26 @@ function laneBoard(parent,lanes){
   }
   return {board,laneFrames};
 }
+// a segmented progress meter (10 blocks): filled ones solid black, remaining ones outlined
+// (dashed outline if the whole group is locked). Used only on the Rewards screen. Segments are
+// all set to FILL so Figma's auto-layout distributes the row width evenly between them, giving
+// a proportional-looking meter without needing to compute pixel widths by hand.
+function progressBar(parent,pct,dashed){
+  const row=al(parent,'HORIZONTAL',{name:'Progress meter',gap:3,fw:true});
+  const total=10, filled=Math.round(pct*total);
+  for(let i=0;i<total;i++){
+    rectBox(row,{name:'Segment',w:1,h:10,r:2,fill:i<filled?K:W,stroke:K,sw:1,dash:(dashed&&i>=filled)?[2,2]:null,fw:true});
+  }
+  return row;
+}
 
 // --- clean slate for screens 18-20 and for screen 11's pins/panel ---
-const NAMES=['18 · AI Helper, Status board (Concept A)','19 · Discussions, Status board (Concept A)','20 · Road to Glory, Status board (Concept A)'];
+const NAMES=['18 · AI Helper, Priority list (Concept A)','19 · Discussions, Status board (Concept A)','20 · Road to Glory, Progress groups (Concept A)'];
 const toRemove=[];
 for(const n of NAMES) toRemove.push(n,'Label '+n,'Sub '+n,'Spec · '+n);
+// also clear the OLD name from before this revision, so a re-run does not leave a duplicate
+toRemove.push('18 · AI Helper, Status board (Concept A)','Label 18 · AI Helper, Status board (Concept A)','Sub 18 · AI Helper, Status board (Concept A)','Spec · 18 · AI Helper, Status board (Concept A)');
+toRemove.push('20 · Road to Glory, Status board (Concept A)','Label 20 · Road to Glory, Status board (Concept A)','Sub 20 · Road to Glory, Status board (Concept A)','Spec · 20 · Road to Glory, Status board (Concept A)');
 for(const n of page.children.filter(c=>toRemove.includes(c.name))) n.remove();
 
 // ================= pins onto the EXISTING screen 11 (Dashboard, Concept A sketch) =================
@@ -182,37 +200,47 @@ for(const n of page.children.filter(c=>toRemove.includes(c.name))) n.remove();
   }
 }
 
-// ================= 18 · AI Helper, Status board (Concept A) =================
+// ================= 18 · AI Helper, Priority list (Concept A) =================
 {
-  const NAME='18 · AI Helper, Status board (Concept A)', X=100+17*1640, Y=220;
+  const NAME='18 · AI Helper, Priority list (Concept A)', X=100+17*1640, Y=220;
   screenLabel(NAME,X,Y);
   const root=newRoot(NAME,X,Y);
   const content=shell(root,'AI Helper');
 
-  const chdr=al(content,'VERTICAL',{gap:4,fw:true}); text(chdr,'Study Helper','Bold',24,K); text(chdr,'Every suggestion the AI makes lands in a status lane, so you can see what is urgent without reading the chat.','Regular',13,G3);
+  const chdr=al(content,'VERTICAL',{gap:4,fw:true}); text(chdr,'Study Helper','Bold',24,K); text(chdr,'Suggestions are sorted by urgency in one list, with a coloured edge marking how soon each one matters, no lanes to scan across.','Regular',13,G3);
 
-  const {board,laneFrames}=laneBoard(content,[
-   ['Urgent',1,true,[['Finish the worksheet before it costs points','Cell structure worksheet, Biology 9B']]],
-   ['This week',2,false,[['Photosynthesis flashcards','Suggested tonight, 40 min'],['Practice quiz, unit 3','Suggested for Wednesday']]],
-   ['Later',1,false,[['Poetry essay outline','Not due until Thursday']]],
-   ['Done',1,false,[['Map quiz revision','Completed and verified']]],
-  ]);
+  const listCard=al(content,'VERTICAL',{name:'Priority list card',gap:0,fw:true,fh:true,stroke:K,r:12,fill:W,clip:true});
+  const items=[
+   ['Finish the worksheet before it costs points','Cell structure worksheet, Biology 9B','Urgent',true],
+   ['Photosynthesis flashcards','Suggested tonight, 40 min','This week',false],
+   ['Practice quiz, unit 3','Suggested for Wednesday','This week',false],
+   ['Poetry essay outline','Not due until Thursday','Later',false],
+   ['Map quiz revision','Completed and verified','Done',false],
+  ];
+  const rowFrames=[];
+  items.forEach(([title,sub,status,warn],i)=>{
+    const row=al(listCard,'HORIZONTAL',{name:'Priority row',gap:0,fw:true,align:'CENTER'});
+    rectBox(row,{name:'Accent',w:4,h:52,fill:warn?K:(status==='Done'?G2:K),stroke:null,r:0,dash:null});
+    const inner=al(row,'HORIZONTAL',{px:16,py:14,gap:12,fw:true,align:'CENTER',justify:'SPACE_BETWEEN'});
+    const m=al(inner,'VERTICAL',{gap:2,fw:true}); text(m,title,'Semi Bold',14,status==='Done'?G3:K); text(m,sub,'Regular',12,G3);
+    chip(inner,status,{dark:warn,plain:status==='Done'});
+    if(i<items.length-1) divider(listCard);
+    rowFrames.push(row);
+  });
 
-  const chatCard=al(content,'VERTICAL',{name:'Chat preview card',px:20,py:16,gap:10,fw:true,stroke:K,r:12,fill:W});
-  const ch=al(chatCard,'HORIZONTAL',{gap:12,fw:true,align:'CENTER'}); const mark=al(ch,'HORIZONTAL',{w:32,h:32,fill:K,r:8,align:'CENTER',justify:'CENTER'}); text(mark,'C','Bold',16,W); text(ch,'Want me to move anything between lanes, or add a new suggestion?','Regular',14,K,{fw:true});
-  const askBar=al(chatCard,'HORIZONTAL',{name:'Ask bar',px:16,py:10,gap:10,align:'CENTER',stroke:K,r:99,fill:W,fw:true}); icon(askBar,20,'Ask icon'); text(askBar,'Ask questions...','Regular',14,G3,{fw:true}); btn(askBar,'Send',{primary:true,py:8});
+  const askBar=al(content,'HORIZONTAL',{name:'Ask bar',px:16,py:12,gap:10,align:'CENTER',stroke:K,r:99,fill:W,fw:true});
+  icon(askBar,20,'Ask icon'); text(askBar,'Ask questions...','Regular',14,G3,{fw:true}); btn(askBar,'Send',{primary:true,py:8});
 
-  pin(chdr,1); pin(board,2); pin(laneFrames[0].lane,3); pin(laneFrames[0].cardFrames[0],4); pin(laneFrames[3].lane,5); pin(chatCard,6); pin(askBar,7);
+  pin(chdr,1); pin(listCard,2); pin(rowFrames[0],3); pin(rowFrames[4],4); pin(askBar,5);
 
   specPanel(NAME,[
    {rows:[
-    'Header: "Study Helper" 24px Bold, subtitle sets the Concept A framing directly, every suggestion lands in a lane instead of a chat thread you have to re-read.',
-    'Status board: 4 lanes (Urgent, This week, Later, Done), same lane component as the Dashboard Concept A sketch, fills the width and available height.',
-    'Urgent lane: #F0F0F0 fill, dashed 4,3 stroke, the same pending/attention marker used everywhere else in the product.',
-    'Suggestion card inside a lane: corner radius 10px, 1.5px stroke, white fill, 12px padding; title 13px Semi Bold plus a one-line detail.',
-    'Done lane: solid white fill, no dash, holds AI suggestions that were followed and later verified.',
-    'Chat preview card below the board: corner radius 12px, 1.5px stroke, white fill; a single follow-up prompt rather than a full message history, since the lanes above already carry most of the information a chat history would.',
-    'Ask bar: 99px radius pill, 1.5px stroke, with a Send button, unchanged styling from the rest of the product.',
+    'Header: "Study Helper" 24px Bold, subtitle sets the Concept A framing directly, one sorted list instead of side-by-side lanes.',
+    'Priority list card: corner radius 12px, 1.5px black stroke, fills the remaining height, clips content; rows separated by 1.5px dividers.',
+    'Priority row: a 4px wide solid accent bar on the left edge (black for Urgent and This week rows, grey for a Done row), then 16px/14px padding, title, subtitle, and a status chip on the right.',
+    'Urgent row: black accent bar plus a solid black "Urgent" chip, the strongest attention marker on the screen.',
+    'Done row: grey accent bar, title text in grey rather than black, and a plain white "Done" chip, so a completed item visibly recedes without being removed from the list.',
+    'Ask bar: 99px radius pill, 1.5px stroke, black Send button, unchanged from the rest of the product.',
    ]},
   ], 100+17*1640, 220+1024+40, 1440);
 }
@@ -224,7 +252,7 @@ for(const n of page.children.filter(c=>toRemove.includes(c.name))) n.remove();
   const root=newRoot(NAME,X,Y);
   const content=shell(root,'Discussions');
 
-  const hdr=al(content,'VERTICAL',{gap:4,fw:true}); text(hdr,'Discussions','Bold',24,K); text(hdr,'Posts are grouped by whether they still need you, not by when they were posted.','Regular',13,G3);
+  const hdr=al(content,'VERTICAL',{gap:4,fw:true}); text(hdr,'Discussions','Bold',24,K); text(hdr,'Posts are grouped by whether they still need you, not by when they were posted. Lanes fit here since these four states are fixed and few.','Regular',13,G3);
 
   const {board,laneFrames}=laneBoard(content,[
    ['Needs your reply',1,true,[['Ananya R. asked a question','# Q&A, Biology 9B, 8 min ago']]],
@@ -240,33 +268,42 @@ for(const n of page.children.filter(c=>toRemove.includes(c.name))) n.remove();
 
   specPanel(NAME,[
    {rows:[
-    'Header: "Discussions" 24px Bold, subtitle sets the framing, grouped by whether the post still needs a reply from the student, not by timestamp.',
-    'Status board: 4 lanes (Needs your reply, New, Read, Resolved), same lane component used across every Concept A screen.',
-    '"Needs your reply" lane: #F0F0F0 fill, dashed 4,3 stroke, the strongest attention marker, reserved for posts that are genuinely waiting on the student.',
+    'Header: "Discussions" 24px Bold, subtitle grouped by whether the post still needs a reply, and explains why lanes fit this screen specifically: a small, fixed set of states.',
+    'Status board: 4 lanes (Needs your reply, New, Read, Resolved), each fills equal width and available height, 14px padding, corner radius 12px, 1.5px stroke.',
+    '"Needs your reply" lane: #F0F0F0 fill, dashed 4,3 stroke, the strongest attention marker, reserved for posts genuinely waiting on the student.',
     'Post card inside a lane: corner radius 10px, 1.5px stroke, white fill; title line plus a channel and time or sender line underneath.',
-    'Resolved lane: solid white fill, holds a thread that already reached a conclusion, kept visible rather than hidden so a student can still find it.',
-    'Composer: 32px avatar, input at 12px radius with a 1.5px stroke, black Post button; placeholder text acknowledges that a reply could go to any lane\'s post rather than one fixed channel.',
+    'Resolved lane: solid white fill, holds a thread that already reached a conclusion, kept visible rather than hidden.',
+    'Composer: 32px avatar, input at 12px radius with a 1.5px stroke, black Post button; placeholder acknowledges a reply could go to any lane\'s post.',
    ]},
   ], 100+18*1640, 220+1024+40, 1440);
 }
 
-// ================= 20 · Road to Glory, Status board (Concept A) =================
+// ================= 20 · Road to Glory, Progress groups (Concept A) =================
 {
-  const NAME='20 · Road to Glory, Status board (Concept A)', X=100+19*1640, Y=220;
+  const NAME='20 · Road to Glory, Progress groups (Concept A)', X=100+19*1640, Y=220;
   screenLabel(NAME,X,Y);
   const root=newRoot(NAME,X,Y);
   const content=shell(root,'Rewards');
 
   const hdr=al(content,'HORIZONTAL',{name:'Header',fw:true,justify:'SPACE_BETWEEN',align:'CENTER'});
-  const hl=al(hdr,'VERTICAL',{gap:4}); text(hl,'Road to Glory','Bold',28,K); text(hl,'Badges and rewards are grouped by how close you are to them, not laid out as one long list.','Regular',14,G3);
+  const hl=al(hdr,'VERTICAL',{gap:4}); text(hl,'Road to Glory','Bold',28,K); text(hl,'Every reward is shown as a fill bar, how close you are matters more than a fixed category here.','Regular',14,G3);
   chip(hdr,'240 pts, verified');
 
-  const {board,laneFrames}=laneBoard(content,[
-   ['Ready to redeem',2,false,[['Streak freeze','60 pts, you can afford this now'],['Gold avatar frame','40 pts, you can afford this now']]],
-   ['Almost there',1,false,[['Darksword: +90 damage','150 pts, 90 pts to go']]],
-   ['Locked badges',2,true,[['Class helper','Complete 5 verified tasks to unlock'],['30-day streak','19 days to go']]],
-   ['Unlocked',1,false,[['Perfect week','Earned 8 Sep']]],
-  ]);
+  const groupsCard=al(content,'VERTICAL',{name:'Progress groups card',gap:16,fw:true,px:20,py:16,stroke:K,r:12,fill:W});
+  const groups=[
+   ['Ready to redeem','Streak freeze, Gold avatar frame',1,false],
+   ['Almost there','Darksword: +90 damage, 90 pts to go',0.4,false],
+   ['Locked badges','Class helper needs 5 verified tasks, 30-day streak needs 19 more days',0,true],
+   ['Unlocked','Perfect week, earned 8 Sep',1,false],
+  ];
+  const groupFrames=[];
+  groups.forEach(([name,detail,pct,locked])=>{
+    const g=al(groupsCard,'VERTICAL',{name:'Group/'+name,gap:8,fw:true});
+    const gh=al(g,'HORIZONTAL',{fw:true,justify:'SPACE_BETWEEN',align:'CENTER'}); text(gh,name,'Semi Bold',15,K); text(gh,Math.round(pct*100)+'%','Regular',12,G3);
+    progressBar(g,pct,locked);
+    text(g,detail,'Regular',12,G3,{fw:true});
+    groupFrames.push(g);
+  });
 
   const lead=al(content,'VERTICAL',{name:'Class leaderboard card',px:20,py:16,gap:10,fw:true,stroke:K,r:12,fill:W});
   text(lead,'Class leaderboard','Semi Bold',16,K);
@@ -276,16 +313,16 @@ for(const n of page.children.filter(c=>toRemove.includes(c.name))) n.remove();
     circleEl(r,26); text(r,name,me?'Semi Bold':'Regular',14,K,{fw:true}); text(r,String(score),'Bold',14,K);
   }
 
-  pin(hdr,1); pin(board,2); pin(laneFrames[0].lane,3); pin(laneFrames[1].cardFrames[0],4); pin(laneFrames[2].lane,5); pin(lead,6);
+  pin(hdr,1); pin(groupsCard,2); pin(groupFrames[0],3); pin(groupFrames[1],4); pin(groupFrames[2],5); pin(lead,6);
 
   specPanel(NAME,[
    {rows:[
-    'Header: "Road to Glory" 28px Bold, subtitle sets the framing, grouped by distance to the reward rather than a fixed catalogue order.',
-    'Status board: 4 lanes (Ready to redeem, Almost there, Locked badges, Unlocked), same lane component used on every Concept A screen.',
-    '"Ready to redeem" lane: rewards the student can already afford, each card states the cost plainly as "you can afford this now".',
-    '"Almost there" card: names exactly how many points are left to go, for example "90 pts to go" for the Darksword upgrade, turning the abstract point balance into a concrete target.',
-    'Locked badges lane: #F0F0F0 fill, dashed 4,3 stroke, each card states what specifically still needs to happen to unlock it rather than just saying "Locked".',
-    'Class leaderboard card kept unchanged from the main Rewards screen, trimmed to the top 2 rows, for the same reason it appears on every alternative Rewards concept: it is not part of what any concept is exploring, so it stays constant for a fair comparison.',
+    'Header: "Road to Glory" 28px Bold, subtitle sets the framing directly, a fill bar per reward group instead of a fixed lane.',
+    'Progress groups card: corner radius 12px, 1.5px stroke, white fill, 16px gap between the four groups.',
+    '"Ready to redeem" group: a full black progress bar, both affordable rewards named inline rather than as separate cards.',
+    '"Almost there" group: a partially filled bar (40 percent) and a caption stating exactly how many points are left, turning the abstract balance into a concrete target.',
+    'Locked badges group: an empty bar with a dashed 3,2 track instead of solid, matching the pending/locked marker used elsewhere; caption states what specifically still needs to happen.',
+    'Class leaderboard card: unchanged row and rank-badge styling, kept for the same reason on every alternative Rewards concept, since it is not what any concept is exploring and should stay constant for a fair comparison.',
    ]},
   ], 100+19*1640, 220+1024+40, 1440);
 }
@@ -299,5 +336,5 @@ for(const t of page.findAllWithCriteria({types:['TEXT']})){
 }
 
 figma.viewport.scrollAndZoomIntoView(page.children);
-figma.notify('Done: Concept A full set. Pins added to screen 11, screens 18-20 built with pins. ' + dashCount + ' em dashes replaced.');
+figma.notify('Done: Concept A revised. Pins on screen 11, screens 18-20 rebuilt with distinct layouts. ' + dashCount + ' em dashes replaced.');
 return { ok: true };
