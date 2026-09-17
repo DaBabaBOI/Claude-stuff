@@ -12,6 +12,7 @@ import { CameraController, VIEW_FIRST_PERSON, VIEW_TOP_DOWN } from './systems/Ca
 import { HUD } from './ui/HUD.js';
 import { AudioManager } from './systems/AudioManager.js';
 import { Mend } from './abilities/Mend.js';
+import { DashStrike } from './abilities/DashStrike.js';
 
 const MAX_DELTA = 1 / 20; // never simulate more than a 50 ms step
 
@@ -71,6 +72,7 @@ const player = new Player({ scene, projectileSystem: projectiles });
 player.equipMelee(createMelee('sword'));
 player.equipRanged(createRanged('bow'));
 player.abilities[0] = new Mend();
+player.abilities[1] = new DashStrike();
 state.player = player;
 
 // The dummy stays: it is the thing you tune weapon feel against.
@@ -184,6 +186,7 @@ function updateWaves(dt) {
 }
 
 const input = new InputManager(renderer.domElement);
+state.input = input;
 const cameraController = new CameraController(camera);
 cameraController.snapTo(player.position);
 const hud = new HUD(document);
@@ -276,13 +279,22 @@ function tick() {
   if (input.justPressed('inventory')) toggleInventory();
 
   if (!state.paused) {
-    handleActions();
+    // Hit stop freezes the simulation for a few frames on a heavy landing. The
+    // camera and the sound keep running through it — the freeze is what gives
+    // the hit weight, and freezing the feedback with it would read as a stutter.
+    const frozen = state.hitStop > 0;
+    if (frozen) {
+      state.hitStop = Math.max(0, state.hitStop - dt);
+    } else {
+      handleActions();
 
-    player.update(dt, state, input);
-    for (const enemy of state.enemies) enemy.update(dt, state);
-    projectiles.update(dt, state);
-    updateWaves(dt);
-    updatePickups(dt);
+      player.update(dt, state, input);
+      for (const enemy of state.enemies) enemy.update(dt, state);
+      projectiles.update(dt, state);
+      updateWaves(dt);
+      updatePickups(dt);
+    }
+
     audio.update(state);
 
     // In first person the hero turns with the mouse, so the movement basis has
@@ -293,7 +305,8 @@ function tick() {
       dt,
       player.position,
       input.hasAim ? input.aimPoint : null,
-      { yaw: player.facing, pitch: input.lookPitch }
+      { yaw: player.facing, pitch: input.lookPitch },
+      state
     );
   }
 

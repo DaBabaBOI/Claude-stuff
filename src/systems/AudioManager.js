@@ -22,6 +22,8 @@ const THROTTLE_MS = {
   'arrow-ground': 80,
   'zombie-groan': 400,
   'player-hurt': 120,
+  dash: 100,
+  drop: 60,
 };
 
 export class AudioManager {
@@ -184,6 +186,15 @@ export class AudioManager {
       case 'heal':
         this.tone({ type: 'sine', from: 430, to: 700, duration: 0.3, gain: 0.3 });
         this.tone({ type: 'sine', from: 650, to: 1050, duration: 0.35, gain: 0.16, delay: 0.09 });
+        break;
+
+      case 'dash':
+        this.noise({ duration: 0.26, gain: 0.3, from: 1800, to: 240, q: 1.4 });
+        this.tone({ type: 'triangle', from: 320, to: 620, duration: 0.16, gain: 0.18 });
+        break;
+
+      case 'drop':
+        this.tone({ type: 'triangle', from: 520, to: 340, duration: 0.14, gain: 0.16 });
         break;
 
       case 'wave':

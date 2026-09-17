@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Enemy } from './Enemy.js';
 import { createWeaponModel } from './weaponModels.js';
+import { ArrowBundle } from './ArrowBundle.js';
 import { RangedWeapon } from '../combat/RangedWeapon.js';
 import { angleDelta, clamp, dampAngle, directionFromYaw, yawFromDirection } from '../mathUtils.js';
 
@@ -72,6 +73,18 @@ export class Skeleton extends Enemy {
     this.cooldownTimer = 0;
     this.removeAfter = 2.5;
     this.strafeDirection = Math.random() < 0.5 ? -1 : 1;
+  }
+
+  /**
+   * Drop part of the quiver. A skeleton is the natural source of arrows, and
+   * this is what makes archers worth pushing through instead of ignoring:
+   * kill the thing shooting at you and it pays for the shots you spent.
+   */
+  onDeath(state) {
+    state.pickups.push(
+      new ArrowBundle({ scene: this.scene, position: this.position, amount: 4 })
+    );
+    state.pushEvent('drop');
   }
 
   get isAiming() {

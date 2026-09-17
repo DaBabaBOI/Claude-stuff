@@ -1,7 +1,14 @@
 import * as THREE from 'three';
 import { HumanoidRig } from './HumanoidRig.js';
 import { createQuiver, createWeaponModel } from './weaponModels.js';
-import { clamp, damp, dampAngle, directionFromYaw, yawFromDirection } from '../mathUtils.js';
+import {
+  clamp,
+  closestPointOnSegmentXZ,
+  damp,
+  dampAngle,
+  directionFromYaw,
+  yawFromDirection,
+} from '../mathUtils.js';
 
 const BASE_MOVE_SPEED = 5.4;   // metres/sec
 const SPRINT_MULTIPLIER = 1.55;
@@ -55,6 +62,8 @@ export class Player {
     /** Which weapon is in the hand socket; the other sits on the back. */
     this.heldSlot = 'melee';
 
+    /** Set while a dash is in flight; see startDash(). */
+    this.dash = null;
     this.dead = false;
     this.hitTimer = HIT_REACTION_TIME; // >= HIT_REACTION_TIME means "not reacting"
     this.staminaIdleTimer = 0;
@@ -104,6 +113,79 @@ export class Player {
     this.rig.quiverSocket.add(this.quiver);
 
     this.attachWeapons();
+  }
+
+  get invulnerable() {
+    return this.dash !== null;
+  }
+
+  /**
+   * Begin a dash. Returns false if one is already running, so holding the key
+   * cannot chain them.
+   * @param {{direction: {x:number,z:number}|null, distance: number,
+   *          duration: number, damage: number}} options
+   */
+  startDash({ direction, distance, duration, damage }) {
+    if (this.dash || this.dead) return false;
+
+    const dir = direction ?? directionFromYaw(this.facing);
+    const length = Math.hypot(dir.x, dir.z) || 1;
+    this.dash = {
+      x: dir.x / length,
+      z: dir.z / length,
+      speed: distance / duration,
+      remaining: duration,
+      damage,
+      hit: new Set(),
+    };
+    this.facing = yawFromDirection(this.dash.x, this.dash.z);
+    this.equippedRanged?.cancelDraw();
+    this.rig.setGlow(0.15, 0.35, 0.6);
+    return true;
+  }
+
+  /**
+   * Move the dash and damage whatever it passes through. The hit test is swept,
+   * the same as an arrow's: at 20 m/s the roll covers more ground per frame
+   * than an enemy is wide, so testing end positions alone would pass straight
+   * through people.
+   */
+  updateDash(dt, state) {
+    const dash = this.dash;
+    const fromX = this.position.x;
+    const fromZ = this.position.z;
+
+    const step = Math.min(dash.remaining, dt);
+    this.position.x += dash.x * dash.speed * step;
+    this.position.z += dash.z * dash.speed * step;
+    this.velocity.set(dash.x * dash.speed, 0, dash.z * dash.speed);
+
+    const { arena } = state;
+    this.position.x = clamp(this.position.x, arena.minX + this.radius, arena.maxX - this.radius);
+    this.position.z = clamp(this.position.z, arena.minZ + this.radius, arena.maxZ - this.radius);
+
+    for (const enemy of state.enemies) {
+      if (enemy.dead || dash.hit.has(enemy)) continue;
+      const reach = enemy.radius + this.radius;
+      const { distSq } = closestPointOnSegmentXZ(
+        enemy.position.x,
+        enemy.position.z,
+        fromX,
+        fromZ,
+        this.position.x,
+        this.position.z
+      );
+      if (distSq > reach * reach) continue;
+
+      dash.hit.add(enemy);
+      enemy.takeDamage(dash.damage, state, { kind: 'melee', fromX, fromZ });
+    }
+
+    dash.remaining -= dt;
+    if (dash.remaining <= 0) {
+      this.dash = null;
+      this.rig.clearGlow();
+    }
   }
 
   /** Fire the ability in a slot. Returns whether it went off. */
@@ -194,13 +276,15 @@ export class Player {
   }
 
   takeDamage(amount, state) {
-    if (this.dead) return;
+    if (this.dead || this.invulnerable) return;
     const applied = Math.max(1, Math.round(amount - this.defense));
     this.health = Math.max(0, this.health - applied);
     this.hitTimer = 0;
     this.rig.triggerFlash(1);
     state.pushDamageEvent({ x: this.position.x, y: 1.9, z: this.position.z }, applied, 'player');
     state.pushEvent('player-hurt', { amount: applied });
+    // Taking a hit shakes harder than landing one.
+    state.requestImpact(applied * 1.6);
     if (this.health === 0) this.die(state);
   }
 
@@ -212,6 +296,8 @@ export class Player {
   }
 
   respawn() {
+    /** Set while a dash is in flight; see startDash(). */
+    this.dash = null;
     this.dead = false;
     this.health = this.maxHealth;
     this.stamina = this.maxStamina;
@@ -238,6 +324,15 @@ export class Player {
       this.deathTimer = (this.deathTimer ?? 0) + dt;
       this.velocity.multiplyScalar(0.1);
       this.updateRig(dt, state, 0);
+      return;
+    }
+
+    // A dash owns the character for its duration: no steering, no attacks.
+    if (this.dash) {
+      this.updateDash(dt, state);
+      this.resolveCollisions(state);
+      this.equippedMelee?.update(dt, { owner: this, state });
+      this.updateRig(dt, state, 1);
       return;
     }
 

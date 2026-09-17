@@ -281,6 +281,7 @@ export class HumanoidRig {
 
     this.walkPhase = 0;
     this.flash = 0;
+    this.glow = null;
     this._drawHandWorld = new THREE.Vector3();
     /** Last hand targets the bow poses asked the IK for, in body space. */
     this.ikTargets = { bow: new THREE.Vector3(), draw: new THREE.Vector3() };
@@ -337,6 +338,22 @@ export class HumanoidRig {
     // the world orientation just built.
     this.offHandSocket.getWorldQuaternion(_bowSocketQuat);
     bow.quaternion.copy(_bowSocketQuat.invert()).multiply(_bowQuat);
+  }
+
+  /**
+   * Hold a colour on the whole body until cleared — the visual tell for an
+   * ability that lasts longer than a frame. Unlike triggerFlash this does not
+   * decay, so "I am invulnerable right now" reads for exactly as long as it is
+   * true.
+   */
+  setGlow(r, g, b) {
+    this.glow = { r, g, b };
+    for (const material of Object.values(this.materials)) material.emissive.setRGB(r, g, b);
+  }
+
+  clearGlow() {
+    this.glow = null;
+    for (const material of Object.values(this.materials)) material.emissive.setRGB(0, 0, 0);
   }
 
   /** Flash the whole body white for a moment (hit feedback at blockout). */
@@ -579,7 +596,12 @@ export class HumanoidRig {
     }
 
     // ---- Flash ------------------------------------------------------------
-    if (this.flash > 0) {
+    if (this.glow) {
+      // A held glow outranks the hit flash: it is saying something still true.
+      for (const material of Object.values(this.materials)) {
+        material.emissive.setRGB(this.glow.r, this.glow.g, this.glow.b);
+      }
+    } else if (this.flash > 0) {
       this.flash = Math.max(0, this.flash - dt * 6);
       const v = this.flash * 0.9;
       for (const material of Object.values(this.materials)) {

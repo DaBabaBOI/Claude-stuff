@@ -36,6 +36,7 @@ npm run verify       # headless acceptance test, writes screenshot.png
 | Hold right click | Draw the bow — release to loose |
 | `1` / `2` | Choose which weapon is held (the other goes on the back) |
 | `Q` | Mend — heal yourself |
+| `E` | Dash — roll, invulnerable, cuts what you pass through |
 | `I` | Inventory (pauses) |
 | `V` | Toggle first person / top-down |
 | `M` | Mute |
@@ -297,8 +298,29 @@ shoot, and the only way to refill it is to walk over an **arrow bundle** on the 
 few are kept on the field at all times, never within 5 m of you, so running dry is a reason
 to move rather than a dead end. A full quiver leaves a bundle where it is.
 
-See [BACKLOG.md](BACKLOG.md) for where this is going — enemy drops, recovering spent
-arrows (they already stick in the ground), bundle sizes.
+**Skeletons drop four arrows where they fall**, which is what makes archers worth pushing
+through rather than ignoring: kill the thing shooting at you and it pays for the shots you
+spent. See [BACKLOG.md](BACKLOG.md) for the rest — recovering spent arrows (they already
+stick in the ground), bundle sizes.
+
+## Impact
+
+A heavy landing freezes the simulation for a few frames and shakes the camera, scaled by
+how hard it hit:
+
+```
+  damage     hit stop     from
+  ────────────────────────────────────────
+   6          0 ms        a snap shot — nothing, or every scratch reads the same
+  12         15 ms        a sword hit
+  23         56 ms        a fully drawn arrow
+  28+        75 ms        a Revenant's sword, capped
+```
+
+The camera and the sound keep running through the freeze. Stopping the feedback too
+reads as a stutter rather than a hit — it is the contrast between the frozen world and the
+live camera that gives it weight. Shake is a positional offset, never a rotation, and
+first person gets a third of the amplitude: a rotating first-person camera reads as nausea.
 
 ## Mend, and the ability slots
 
@@ -308,10 +330,24 @@ you hoard. What keeps it honest is that healing and sprinting draw on the same s
 pool, so escaping and recovering compete. It refuses to fire at full health, so a
 mistimed press does not eat the cooldown for nothing.
 
-It lives in `Player.abilities[0]`, built on an `Ability` base class that owns the
-cooldown and cost bookkeeping — subclasses override `apply()`, so neither can be
-forgotten. Slots 2 and 3 (`E`, `R`) are still empty. Cooldowns are per ability, never
-shared, so all three can be planned around independently.
+`E` is **Dash Strike**: a 0.22 s roll covering 4.5 m, invulnerable the whole way, dealing
+your melee weapon's damage to anything it passes through.
+
+```
+   ●═══════════════▶     invulnerable, 4.5 m
+    ╲__ anything inside this swept line takes melee damage, once
+```
+
+This is the answer to being surrounded. Backpedalling is deliberately slow and melee reach
+is short, so without a way out, a pack plus an archer is a fight you can only kite. Making
+it *also* deal damage keeps it a commitment rather than a panic button: you dash toward
+something, not away from everything. The hit test is swept like an arrow's — at 20 m/s the
+roll covers more ground per frame than an enemy is wide.
+
+Both live in `Player.abilities`, built on an `Ability` base class that owns the cooldown
+and cost bookkeeping — subclasses override `apply()`, so neither can be forgotten. Slot 3
+(`R`) is still empty. Cooldowns are per ability, never shared, so all three can be planned
+around independently.
 
 ## Zombies
 
@@ -443,6 +479,7 @@ src/
   abilities/
     Ability.js              base class: cooldown, cost, trigger bookkeeping
     Mend.js                 the heal (Q)
+    DashStrike.js           the invulnerable roll (E)
   systems/
     InputManager.js         keyboard/mouse/gamepad → moveVector + aimYaw
     CameraController.js     locked top-down follow camera + first person
@@ -460,7 +497,7 @@ tools/
 mouse clicks, and waits on game state rather than wall-clock sleeps (headless software
 rendering runs at ~10 fps, so fixed sleeps mean nothing).
 
-**59/59 checks passing**, covering: boot and render; WASD movement; mouse aim; melee swing
+**68/68 checks passing**, covering: boot and render; WASD movement; mouse aim; melee swing
 and damage numbers; bow draw, release, travel, arc height, ground stick and hit; reload;
 player hit reaction; zombie chase, telegraph, strike, mid-windup movement and death;
 skeleton draw, loose, damage and range keeping; team-correct arrows; charge scaling for
@@ -482,6 +519,11 @@ PASS  the draw is in proportion to the bow  (0.52 m draw on a 1.20 m bow (0.44))
 PASS  the nocked arrow points where you are aiming  (7.8° off the aim direction)
 PASS  the bow stands upright  (8.7° from vertical)
 PASS  the bow is square to the arrow it is shooting  (bow face 7.8°, arrow 7.8°)
+PASS  a dead skeleton drops arrows where it fell  (4 arrows at the corpse)
+PASS  heavy hits freeze the frame and shake the camera  (56 ms of hit stop)
+PASS  the world holds still during hit stop  (frames still render, entities do not move)
+PASS  you cannot be hit mid-dash  (took 0 from a 40 damage hit during the roll)
+PASS  the dash cuts what it passes through  (12 damage in passing)
 PASS  arrows on the back match the arrows you have  (12 shown at full, 4 shown at 4)
 PASS  walking over a bundle refills the quiver  (2 -> 7 arrows)
 PASS  IK puts both hands on their targets  (bow hand off by 0.9 cm, draw hand 2.0 cm)
@@ -490,7 +532,7 @@ PASS  armoured zombies wear armour and soak damage  (took 17 vs 20, defense 3)
 PASS  Q heals you  (40 -> 72 health)
 PASS  the heal goes on cooldown  (7s cooldown, 7.0s left)
 
-59/59 checks passed
+68/68 checks passed
 ```
 
 ## Deliberately not built yet

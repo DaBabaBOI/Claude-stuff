@@ -32,6 +32,28 @@ export class CameraController {
     this.lookTarget = new THREE.Vector3();
     this.desired = new THREE.Vector3();
     this.mode = VIEW_TOP_DOWN;
+    this.shakeOffset = new THREE.Vector3();
+  }
+
+  /**
+   * Shake decays exponentially and is applied as a small positional offset,
+   * never a rotation — a rotating first-person camera reads as nausea rather
+   * than impact. First person gets a third of the amplitude for the same reason.
+   */
+  applyShake(dt, state) {
+    if (state.shake <= 0.001) {
+      state.shake = 0;
+      this.shakeOffset.set(0, 0, 0);
+      return;
+    }
+    state.shake *= Math.pow(0.02, dt);
+    const amplitude = state.shake * (this.isFirstPerson ? 0.05 : 0.16);
+    this.shakeOffset.set(
+      (Math.random() * 2 - 1) * amplitude,
+      (Math.random() * 2 - 1) * amplitude * 0.6,
+      (Math.random() * 2 - 1) * amplitude
+    );
+    this.camera.position.add(this.shakeOffset);
   }
 
   get isFirstPerson() {
@@ -55,12 +77,13 @@ export class CameraController {
     this.camera.lookAt(this.lookTarget);
   }
 
-  update(dt, position, aimPoint, look = null) {
+  update(dt, position, aimPoint, look = null, state = null) {
     if (this.isFirstPerson) {
       this.camera.position.set(position.x, position.y + EYE_HEIGHT, position.z);
       this.camera.rotation.y = look?.yaw ?? 0;
       this.camera.rotation.x = look?.pitch ?? 0;
       this.camera.rotation.z = 0;
+      if (state) this.applyShake(dt, state);
       return;
     }
 
@@ -80,5 +103,6 @@ export class CameraController {
       this.lookTarget.z + this.offset.z
     );
     this.camera.lookAt(this.lookTarget);
+    if (state) this.applyShake(dt, state);
   }
 }

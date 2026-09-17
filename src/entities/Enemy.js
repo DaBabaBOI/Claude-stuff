@@ -44,6 +44,7 @@ export class Enemy {
     this.rig.triggerFlash(1);
     state.pushDamageEvent({ x: this.position.x, y: 2.0, z: this.position.z }, applied, kind);
     state.pushEvent('hit', { amount: applied, kind });
+    state.requestImpact(applied);
 
     // A nudge away from the attacker — enough to read as an impact.
     const dx = this.position.x - fromX;
@@ -55,8 +56,12 @@ export class Enemy {
       this.dead = true;
       this.deathTimer = 0;
       state.pushEvent('enemy-death');
+      this.onDeath(state);
     }
   }
+
+  /** Hook for subclasses: drops, death effects. Runs once, on the killing blow. */
+  onDeath() {}
 
   respawn() {
     this.dead = false;

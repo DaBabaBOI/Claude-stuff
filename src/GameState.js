@@ -42,8 +42,29 @@ export class GameState {
     this.arena = { minX: -19, maxX: 19, minZ: -19, maxZ: 19 };
 
     this.paused = false;
+
+    /**
+     * Seconds of hit stop still owed. While this is running the simulation
+     * holds still but the camera and sound do not — the freeze is what gives a
+     * heavy hit its weight, and freezing the feedback too would just feel like
+     * a stutter.
+     */
+    this.hitStop = 0;
+    /** Screen shake energy, 0..1, decayed by the camera each frame. */
+    this.shake = 0;
     /** Set false for a quiet sandbox: no new zombie waves spawn. */
     this.wavesEnabled = true;
+  }
+
+  /**
+   * Ask for hit stop and a shake, scaled by how hard the hit landed. Light hits
+   * get nothing: if every scratch froze the frame, none of them would read.
+   */
+  requestImpact(damage) {
+    const weight = Math.min(1, Math.max(0, (damage - 8) / 20));
+    if (weight <= 0) return;
+    this.hitStop = Math.max(this.hitStop, weight * 0.075);
+    this.shake = Math.min(1, this.shake + weight * 0.55);
   }
 
   /** Queue a gameplay event for this frame (sound, and later VFX). */

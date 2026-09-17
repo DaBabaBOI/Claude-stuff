@@ -47,6 +47,9 @@ Still wrong or missing:
 
 ### Smaller
 
+- The dash has no pose of its own — it reuses the walk cycle with a glow. It
+  wants a roll, or at least a lean into the direction of travel.
+
 - Hit flash tints the whole body uniformly; a hit from behind looks the same as
   one from the front.
 - Enemy health bars have no distance fade, so a far-off skeleton's bar is the
@@ -64,8 +67,6 @@ the field at once, and are collected by walking over them.
 
 Still to do:
 
-- **Enemies drop arrows.** A skeleton should drop part of its quiver on death —
-  it is the natural source, and it makes archers worth prioritising.
 - **Recover spent arrows.** Arrows already stick in the ground for 3 seconds
   (`STUCK_LIFETIME` in `ProjectileSystem.js`). Letting you walk over one to get
   it back would reward accuracy and punish spraying, and the state is already
@@ -96,6 +97,6 @@ From the original build spec, in order:
 | --- | --- |
 | 2. Full weapon roster (scythe, daggers, shortbow, crossbow) | `weapons.config.js` — add stat entries; the classes already carry every field, including `chargeTime: 0` for a crossbow's instant trigger |
 | 3. Armour + upgrades | `Player.equippedArmor` with `defense` / `staminaRegen` / `moveSpeedModifier` reading through it; `Weapon.level` and the `damage`/`speed` getters are where the curve goes |
-| 4. Three abilities | **Slot 1 is Mend (heal, `Q`)**, built on `Ability` in `src/abilities/`. Slots 2 and 3 are empty — dash strike and volley from the spec are the natural fits |
-| 5. HUD polish | Cooldown sweeps, hit-stop, screen shake. `CameraController` owns the camera transform |
+| 4. Three abilities | **Slot 1 is Mend (heal, `Q`), slot 2 is Dash Strike (`E`)**, both on `Ability` in `src/abilities/`. Slot 3 is empty — volley from the spec is the natural fit, and `RangedWeapon.use()` already takes a charge and a direction, so a spread is a loop over it |
+| 5. HUD polish | Cooldown sweeps, hit stop and screen shake are **in**. Still wanted: damage numbers that scale with the hit, a kill flourish, and a directional indicator for damage taken off-screen |
 | 6. More enemies + a real dungeon room | `Zombie.js` and `Skeleton.js` are the templates, and `ZOMBIE_RANKS` is the pattern for kitted variants. The arena in `main.js` is still one flat box |

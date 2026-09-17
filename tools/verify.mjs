@@ -871,6 +871,135 @@ try {
     Object.entries(inventory.mentions).filter(([, v]) => !v).map(([k]) => k).join(', ') || 'all present');
   check('closing the inventory resumes the game', inventory.closed && inventory.running);
 
+  // --- 17. skeleton arrow drops ----------------------------------------------
+  await quiet();
+  const drop = await page.evaluate(async () => {
+    const g = window.__game;
+    for (const b of g.state.pickups) b.dispose();
+    g.state.pickups.length = 0;
+    g.clearZombies();
+    g.player.position.set(0, 0, 0);
+    g.spawnWave();
+    for (let i = g.state.enemies.length - 1; i >= 0; i--) {
+      if (g.state.enemies[i].isZombie) {
+        g.scene.remove(g.state.enemies[i].rig.root);
+        g.state.enemies.splice(i, 1);
+      }
+    }
+    const archer = g.state.enemies.find((e) => e.isSkeleton);
+    archer.position.set(6, 0, 6);
+    const before = g.state.pickups.length;
+    archer.takeDamage(999, g.state, {});
+    await new Promise((r) => requestAnimationFrame(r));
+    const bundle = g.state.pickups[g.state.pickups.length - 1];
+    return {
+      before,
+      after: g.state.pickups.length,
+      amount: bundle?.amount ?? 0,
+      atCorpse: bundle
+        ? Math.hypot(bundle.position.x - 6, bundle.position.z - 6) < 0.5
+        : false,
+    };
+  });
+  check('a dead skeleton drops arrows where it fell',
+    drop.after === drop.before + 1 && drop.atCorpse,
+    `${drop.amount} arrows at the corpse`);
+
+  // --- 18. hit stop and screen shake ------------------------------------------
+  const impact = await page.evaluate(() => {
+    const g = window.__game;
+    g.state.hitStop = 0;
+    g.state.shake = 0;
+    g.state.requestImpact(6); // a glancing hit
+    const light = { stop: g.state.hitStop, shake: g.state.shake };
+    g.state.requestImpact(23); // a fully drawn arrow
+    const heavy = { stop: g.state.hitStop, shake: g.state.shake };
+    return { light, heavy };
+  });
+  check('light hits do not freeze the frame',
+    impact.light.stop === 0 && impact.light.shake === 0);
+  check('heavy hits freeze the frame and shake the camera',
+    impact.heavy.stop > 0.02 && impact.heavy.shake > 0,
+    `${(impact.heavy.stop * 1000).toFixed(0)} ms of hit stop`);
+
+  const frozen = await page.evaluate(async () => {
+    const g = window.__game;
+    g.clearZombies();
+    g.state.shake = 0;
+    g.player.position.set(0, 0, 0);
+    const z = g.spawnRankedZombie('risen', { x: 0, z: -10 });
+    z.state = 'idle';
+    z.aggroRange = 0;
+    const before = { x: z.position.x, z: z.position.z, frame: g.state.frame };
+    g.state.hitStop = 0.4; // long enough to observe across frames
+    const camBefore = g.camera.position.clone();
+    g.state.shake = 1;
+    await new Promise((r) => requestAnimationFrame(r));
+    await new Promise((r) => requestAnimationFrame(r));
+    const camMoved = g.camera.position.distanceTo(camBefore) > 0.0001;
+    const stillFrozen = g.state.hitStop > 0;
+    const moved = Math.hypot(z.position.x - before.x, z.position.z - before.z);
+    const rendered = g.state.frame > before.frame;
+    g.state.hitStop = 0;
+    g.state.shake = 0;
+    return { camMoved, stillFrozen, moved, rendered };
+  });
+  check('the world holds still during hit stop',
+    frozen.rendered && frozen.moved < 0.01 && frozen.stillFrozen,
+    'frames still render, entities do not move');
+  check('the camera keeps shaking through the freeze', frozen.camMoved);
+
+  // --- 19. dash strike --------------------------------------------------------
+  await quiet();
+  const dash = await page.evaluate(async () => {
+    const g = window.__game;
+    const ability = g.player.abilities[1];
+    ability.readyAt = 0;
+    g.clearZombies();
+    g.player.position.set(0, 0, 4);
+    g.player.facing = 0; // -Z
+    g.player.health = g.player.maxHealth;
+    g.player.stamina = g.player.maxStamina;
+    const victim = g.spawnRankedZombie('risen', { x: 0, z: 1.5 });
+    victim.state = 'idle';
+    victim.aggroRange = 0;
+    const hpBefore = victim.health;
+    const from = { x: g.player.position.x, z: g.player.position.z };
+
+    const fired = g.player.useAbility(1, g.state);
+    const invulnerableDuringDash = g.player.invulnerable;
+    // Cannot be hurt mid-roll.
+    g.player.takeDamage(40, g.state);
+    const healthMidDash = g.player.health;
+
+    for (let i = 0; i < 90 && g.player.dash; i++) {
+      await new Promise((r) => requestAnimationFrame(r));
+    }
+    const travelled = Math.hypot(g.player.position.x - from.x, g.player.position.z - from.z);
+    return {
+      name: ability.name,
+      fired,
+      invulnerableDuringDash,
+      healthMidDash,
+      maxHealth: g.player.maxHealth,
+      vulnerableAfter: !g.player.invulnerable,
+      travelled,
+      victimDamage: hpBefore - victim.health,
+      cooldown: ability.cooldown,
+      remaining: ability.cooldownRemaining(g.state.time),
+    };
+  });
+  check('E dashes', dash.fired && dash.travelled > 3,
+    `${dash.name} covered ${dash.travelled.toFixed(1)} m`);
+  check('you cannot be hit mid-dash',
+    dash.invulnerableDuringDash && dash.healthMidDash === dash.maxHealth,
+    'took 0 from a 40 damage hit during the roll');
+  check('the dash cuts what it passes through', dash.victimDamage > 0,
+    `${dash.victimDamage} damage in passing`);
+  check('the dash ends, and goes on cooldown',
+    dash.vulnerableAfter && dash.remaining > 0,
+    `${dash.cooldown}s cooldown`);
+
   await page.screenshot({ path: process.env.SHOT ?? 'screenshot.png' });
   check('no console or page errors', errors.length === 0, errors.slice(0, 2).join(' | '));
 } finally {
