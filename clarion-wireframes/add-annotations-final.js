@@ -69,7 +69,6 @@ const SPEC = [
 ['01 Sign in', [
  [{n:'Brand panel'},'Brand panel: a light purple to blue gradient, cool and bright as the specification asks, carrying the mark and headline before any form.'],
  [{n:'Features'},'Feature list: three outcomes rather than a feature dump, so the value is clear in one read.'],
- [{n:'Preview card'},'Preview card: a real task card with an overdue chip, showing the product before the student commits.'],
  [{n:'Tabs'},'Sign in and Join a class tabs: one card serves returning students and new ones, so there is no second screen to find.'],
  [{n:'Field'},'Input fields: 46px tall with 10px corners and a school email placeholder, following the rounded low stress rule.'],
  [{n:'Btn/Sign in'},'Sign in button: the only filled button on the screen, so the primary action is never ambiguous.'],
@@ -123,6 +122,24 @@ const SPEC = [
 ];
 
 for (const n of P.children.filter(function(n){return n.name.indexOf('Notes ')===0;})) n.remove();
+
+// The sign in screen used to show a mock task card with an overdue chip. A logged out student
+// has no tasks yet, so that card implied data that cannot exist. Remove it, and the trailing
+// spacer that sat above it, so the brand panel stays vertically centred.
+let previewRemoved = false;
+const signIn = P.children.find(function(n){return n.name==='01 Sign in';});
+if (signIn) {
+  const preview = signIn.findOne(function(n){return n.name==='Preview card';});
+  if (preview) {
+    const panel = preview.parent;
+    preview.remove();
+    previewRemoved = true;
+    if (panel && panel.children.length) {
+      const last = panel.children[panel.children.length-1];
+      if (last.name==='Spacer') last.remove();
+    }
+  }
+}
 
 const report={};
 let totalBadges=0, totalMissing=0;
@@ -179,5 +196,5 @@ for (const entry of SPEC) {
   report[entry[0]]={placed:placed, notFound:failed};
 }
 
-figma.notify('Annotations added: '+totalBadges+' badges across 7 screens'+(totalMissing?(', '+totalMissing+' targets not found'):'')+'.');
-return report;
+figma.notify('Annotations added: '+totalBadges+' badges across 7 screens'+(totalMissing?(', '+totalMissing+' targets not found'):'')+(previewRemoved?'. Sign in preview card removed.':'.'));
+return { screens: report, previewCardRemoved: previewRemoved };
