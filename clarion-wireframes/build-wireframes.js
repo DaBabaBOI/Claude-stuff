@@ -108,6 +108,11 @@ function pixelIcon(parent,pattern){
 // A numbered pin badge, attached as a child of `node` so it travels with it. `node` must be an
 // auto-layout frame (created via al/frame) since it needs ABSOLUTE positioning inside a layout
 // parent. Matches the same number as the row it documents in that screen's spec panel below.
+// Default position hangs the badge just outside the target's top-left corner (dx/dy default to
+// -10,-10) so it never sits on top of the target's own label text; a few calls override dx/dy to
+// aim at a specific spot instead. Since that default position pokes outside `node`'s own bounds,
+// every ancestor up to the page has clipsContent turned off so the overhang always renders instead
+// of being cropped.
 function pin(node,number,dx,dy){
   if(!node||typeof node.appendChild!=='function') return null;
   const badge=figma.createFrame();
@@ -119,6 +124,11 @@ function pin(node,number,dx,dy){
   badge.layoutPositioning='ABSOLUTE';
   badge.x=dx??-10; badge.y=dy??-10;
   text(badge,String(number),'Bold',12,W);
+  let ancestor=node;
+  while(ancestor && ancestor.type!=='PAGE'){
+    if('clipsContent' in ancestor) ancestor.clipsContent=false;
+    ancestor=ancestor.parent;
+  }
   return badge;
 }
 // A spec panel is one or more sections. Each section can have an optional heading; its rows are
