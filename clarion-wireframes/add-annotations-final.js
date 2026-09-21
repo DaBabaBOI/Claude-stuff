@@ -12,9 +12,10 @@ await figma.loadFontAsync({family:'Inter',style:'Semi Bold'});
 await figma.loadFontAsync({family:'Inter',style:'Bold'});
 const P = figma.currentPage;
 
-const C={w:{r:1,g:1,b:1},bd:{r:0.902,g:0.914,b:0.945},
- ink:{r:0.078,g:0.086,b:0.169},ink2:{r:0.420,g:0.439,b:0.537},ink3:{r:0.639,g:0.655,b:0.729},
- pu:{r:0.427,g:0.365,b:0.984}};
+const C={w:{r:1,g:1,b:1},bd:{r:0.855,g:0.871,b:0.914},
+ ink:{r:0.055,g:0.063,b:0.133},body:{r:0.114,g:0.125,b:0.196},
+ ink2:{r:0.298,g:0.318,b:0.412},ink3:{r:0.451,g:0.471,b:0.553},
+ pu:{r:0.361,g:0.290,b:0.949}};
 const S=c=>[{type:'SOLID',color:c}];
 
 function frame(dir,opts){
@@ -57,11 +58,13 @@ function T(par,chars,opts){
   if(opts.fw){ t.textAutoResize='HEIGHT'; t.layoutSizingHorizontal='FILL'; }
   return t;
 }
+// Filled rather than outlined: a solid mark with a white ring reads on a white card, on the
+// grey page background and on the coloured panels alike.
 function badge(parent,num){
-  const b=al(parent,'HORIZONTAL',{name:'Note '+num,align:'CENTER',justify:'CENTER',r:999,fill:C.w,w:24,h:24});
-  b.strokes=S(C.pu); b.strokeWeight=1.6;
-  b.effects=[{type:'DROP_SHADOW',color:{r:0.27,g:0.23,b:0.62,a:0.22},offset:{x:0,y:1},radius:4,spread:0,visible:true,blendMode:'NORMAL'}];
-  T(b,String(num),{sz:11.5,st:'Bold',c:C.pu});
+  const b=al(parent,'HORIZONTAL',{name:'Note '+num,align:'CENTER',justify:'CENTER',r:999,fill:C.pu,w:24,h:24});
+  b.strokes=S(C.w); b.strokeWeight=2;
+  b.effects=[{type:'DROP_SHADOW',color:{r:0.16,g:0.13,b:0.44,a:0.30},offset:{x:0,y:1},radius:4,spread:0,visible:true,blendMode:'NORMAL'}];
+  T(b,String(num),{sz:12,st:'Bold',c:C.w});
   return b;
 }
 
@@ -181,7 +184,7 @@ for (const entry of SPEC) {
   const ph=al(panel,'HORIZONTAL',{align:'CENTER',fw:true});
   T(ph,entry[0],{sz:18,st:'Bold'});
   const sp=al(ph,'HORIZONTAL',{w:1,h:1}); sp.layoutSizingHorizontal='FILL';
-  T(ph,'Annotations',{sz:12,st:'Semi Bold',c:C.ink3});
+  T(ph,'Annotations',{sz:12.5,st:'Semi Bold',c:C.ink2});
 
   const cols=al(panel,'HORIZONTAL',{gap:36,fw:true});
   const half=Math.ceil(entry[1].length/2);
@@ -190,7 +193,7 @@ for (const entry of SPEC) {
     for (let i=c2*half;i<Math.min((c2+1)*half,entry[1].length);i++){
       const row=al(col,'HORIZONTAL',{gap:12,align:'MIN',fw:true});
       badge(row,i+1);
-      T(row,entry[1][i][1],{sz:13.5,c:C.ink2,lh:20,fw:true});
+      T(row,entry[1][i][1],{sz:14,c:C.body,lh:21,fw:true});
     }
   }
   report[entry[0]]={placed:placed, notFound:failed};
