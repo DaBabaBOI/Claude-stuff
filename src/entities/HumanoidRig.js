@@ -498,7 +498,8 @@ export class HumanoidRig {
 
     // ---- Layer 2: attacks override the arms ------------------------------
     let targetArmRY = 0;
-    let targetGrip = GRIP_CARRY;
+    // Carry angle is the held weapon's business, not one constant for everything.
+    let targetGrip = this.heldWeapon?.userData?.carryTilt ?? GRIP_CARRY;
     // Elbows: a little bend at rest, more when coiled, straight on a follow
     // through. FK poses carry a bend value; the bow poses use IK instead.
     let targetElbowL = 0.25 + Math.abs(swing) * 0.25;
@@ -532,7 +533,7 @@ export class HumanoidRig {
         targetArmRZ = lerp(-0.15, targetArmRZ, u);
         twist = lerp(0.5, 0, u);
         targetElbowR = lerp(0.08, 0.25, u);
-        targetGrip = lerp(GRIP_SLASH, GRIP_CARRY, u);
+        targetGrip = lerp(GRIP_SLASH, targetGrip, u);
       }
       targetArmLX = lerp(targetArmLX, 0.45, 0.6);
     } else if (state === 'attack-claw') {

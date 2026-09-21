@@ -1,5 +1,6 @@
 import { Weapon } from './Weapon.js';
 import { angleDelta, yawFromDirection } from '../mathUtils.js';
+import { applyWeaponHit } from './damage.js';
 
 /**
  * MeleeWeapon — a swing is a small state machine over one animation:
@@ -87,10 +88,14 @@ export class MeleeWeapon extends Weapon {
       if (Math.abs(angleDelta(owner.facing, toTarget)) > halfArc) continue;
 
       this.hitThisSwing.add(enemy);
-      enemy.takeDamage(this.damage, state, {
-        kind: 'melee',
+      applyWeaponHit({
+        weapon: this,
+        target: enemy,
+        state,
+        attacker: owner,
         fromX: owner.position.x,
         fromZ: owner.position.z,
+        kind: 'melee',
       });
     }
   }

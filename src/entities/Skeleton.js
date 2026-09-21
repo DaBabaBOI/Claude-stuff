@@ -120,6 +120,8 @@ export class Skeleton extends Enemy {
 
     this.stateTimer += dt;
     this.cooldownTimer = Math.max(0, this.cooldownTimer - dt);
+    this.updateStatuses(dt, state);
+    if (this.dead) return;
     if (this.hitTimer < 0.18) this.hitTimer += dt;
     this.bow.update(dt, { state });
 
@@ -145,7 +147,7 @@ export class Skeleton extends Enemy {
           break;
         }
         moving = 1;
-        const step = this.speed * dt;
+        const step = this.speed * this.speedMultiplier * dt;
         if (distance < this.minRange) {
           // Too close: back off, keeping the player in view.
           this.position.x -= (dx / distance) * step;

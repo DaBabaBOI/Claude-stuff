@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { closestPointOnSegmentXZ } from '../mathUtils.js';
 import { createArrowModel } from '../entities/weaponModels.js';
+import { applyWeaponHit } from './damage.js';
 
 const PROJECTILE_RADIUS = 0.14;
 const STUCK_LIFETIME = 3;
@@ -66,6 +67,9 @@ export class ProjectileSystem {
       /** 'player' arrows hit enemies; 'enemy' arrows hit the player. */
       team: spec.team ?? 'player',
       power: spec.power ?? 1,
+      weapon: spec.weapon ?? null,
+      modifier: spec.modifier ?? null,
+      attacker: spec.attacker ?? null,
       stuck: false,
       stuckTimer: 0,
     };
@@ -118,7 +122,20 @@ export class ProjectileSystem {
         const yAtHit = prevY + (p.y - prevY) * t;
         if (yAtHit < 0.15 || yAtHit > enemy.height) continue;
 
-        enemy.takeDamage(p.damage, state, { kind: 'ranged', fromX: prevX, fromZ: prevZ });
+        if (p.weapon) {
+          // Carry the firing weapon along so its modifier applies on impact.
+          applyWeaponHit({
+            weapon: { damage: p.damage, modifier: p.modifier },
+            target: enemy,
+            state,
+            attacker: p.attacker,
+            fromX: prevX,
+            fromZ: prevZ,
+            kind: 'ranged',
+          });
+        } else {
+          enemy.takeDamage(p.damage, state, { kind: 'ranged', fromX: prevX, fromZ: prevZ });
+        }
         consumed = true;
         break;
       }

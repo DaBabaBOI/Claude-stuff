@@ -22,6 +22,10 @@ export class Enemy {
 
     this.isZombie = false;
     this.isSkeleton = false;
+    /** @type {{dps:number, remaining:number}|null} */
+    this.burn = null;
+    /** @type {{slow:number, remaining:number}|null} */
+    this.chill = null;
     this.dead = false;
     this.deathTimer = 0;
     this.hitTimer = HIT_REACTION_TIME;
@@ -34,11 +38,16 @@ export class Enemy {
     scene.add(this.rig.root);
   }
 
-  takeDamage(amount, state, { kind = 'melee', fromX = 0, fromZ = 0 } = {}) {
-    if (this.dead) return;
+  /**
+   * @returns {number} the damage actually dealt, which modifiers need in order
+   *   to leech or chain a share of it.
+   */
+  takeDamage(amount, state, { kind = 'melee', fromX = 0, fromZ = 0, ignoreDefense = false } = {}) {
+    if (this.dead) return 0;
     // Armour never reduces a hit to nothing: a chip of damage always lands, so
     // an armoured enemy is slower to kill, never immune.
-    const applied = Math.max(1, Math.round(amount - this.defense));
+    const defense = ignoreDefense ? 0 : this.defense;
+    const applied = Math.max(1, Math.round(amount - defense));
     this.health = Math.max(0, this.health - applied);
     this.hitTimer = 0;
     this.rig.triggerFlash(1);
@@ -58,6 +67,42 @@ export class Enemy {
       state.pushEvent('enemy-death');
       this.onDeath(state);
     }
+    return applied;
+  }
+
+  /** Burning: damage over time, refreshed rather than stacked. */
+  applyBurn(dps, duration) {
+    this.burn = { dps, remaining: duration };
+  }
+
+  /** Chilled: a movement multiplier for a while. */
+  applyChill(slow, duration) {
+    this.chill = { slow, remaining: duration };
+  }
+
+  /** Movement multiplier from status effects. Subclasses fold this into speed. */
+  get speedMultiplier() {
+    return this.chill && this.chill.remaining > 0 ? 1 - this.chill.slow : 1;
+  }
+
+  /**
+   * Tick status effects. Called from every enemy's update, including the ones
+   * that override it completely.
+   */
+  updateStatuses(dt, state) {
+    if (this.burn) {
+      this.burn.remaining -= dt;
+      this.burnTick = (this.burnTick ?? 0) + dt;
+      if (this.burnTick >= 0.5) {
+        this.burnTick = 0;
+        this.takeDamage(this.burn.dps * 0.5, state, { kind: 'burn', fromX: this.position.x, fromZ: this.position.z });
+      }
+      if (this.burn.remaining <= 0) this.burn = null;
+    }
+    if (this.chill) {
+      this.chill.remaining -= dt;
+      if (this.chill.remaining <= 0) this.chill = null;
+    }
   }
 
   /** Hook for subclasses: drops, death effects. Runs once, on the killing blow. */
@@ -69,6 +114,8 @@ export class Enemy {
     this.deathTimer = 0;
     this.hitTimer = HIT_REACTION_TIME;
     this.knockback.set(0, 0, 0);
+    this.burn = null;
+    this.chill = null;
     this.rig.reset();
   }
 

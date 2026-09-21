@@ -23,6 +23,10 @@ export class GameState {
     this.projectiles = [];
     /** @type {import('./entities/ArrowBundle.js').ArrowBundle[]} */
     this.pickups = [];
+    /** @type {import('./entities/WeaponDrop.js').WeaponDrop[]} weapons on the floor */
+    this.drops = [];
+    /** The drop you are standing on, if any — the HUD prompts from this. */
+    this.nearestDrop = null;
 
     /**
      * Damage events produced this frame. The HUD drains this every frame to

@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { Enemy } from './Enemy.js';
 import { createArmour, createWeaponModel } from './weaponModels.js';
+import { WeaponDrop } from './WeaponDrop.js';
+import { rollWeaponDrop } from '../combat/weapons.config.js';
 import { angleDelta, clamp, dampAngle, yawFromDirection } from '../mathUtils.js';
 
 /**
@@ -36,22 +38,22 @@ import { angleDelta, clamp, dampAngle, yawFromDirection } from '../mathUtils.js'
 export const ZOMBIE_RANKS = [
   {
     id: 'risen', name: 'Risen', weight: 62, lateWeight: 24,
-    health: 60, damage: 9, speed: 2.3, defense: 0,
+    health: 60, damage: 9, speed: 2.3, defense: 0, dropChance: 0.1,
     reach: 1.9, armour: null, weapon: null, tint: 0x4c6b3c,
   },
   {
     id: 'mailed', name: 'Mailed', weight: 22, lateWeight: 30,
-    health: 85, damage: 11, speed: 2.0, defense: 3,
+    health: 85, damage: 11, speed: 2.0, defense: 3, dropChance: 0.18,
     reach: 1.9, armour: { helmet: true, chest: true }, weapon: null, tint: 0x46603a,
   },
   {
     id: 'armed', name: 'Armed', weight: 13, lateWeight: 28,
-    health: 70, damage: 15, speed: 2.5, defense: 0,
+    health: 70, damage: 15, speed: 2.5, defense: 0, dropChance: 0.3,
     reach: 2.5, armour: null, weapon: 'sword', tint: 0x55703f,
   },
   {
     id: 'revenant', name: 'Revenant', weight: 3, lateWeight: 18,
-    health: 110, damage: 18, speed: 2.25, defense: 4,
+    health: 110, damage: 18, speed: 2.25, defense: 4, dropChance: 0.55,
     reach: 2.5, armour: { helmet: true, chest: true }, weapon: 'sword', tint: 0x3f5836,
   },
 ];
@@ -123,6 +125,21 @@ export class Zombie extends Enemy {
     this.removeAfter = 2.5; // seconds of corpse before it is cleaned up
   }
 
+  /**
+   * Drop the kit. Better ranks drop more often, and an armed zombie is more
+   * likely to leave behind something you swing — what it was carrying is a
+   * fair hint at what it drops.
+   */
+  onDeath(state) {
+    if (Math.random() > (this.rank.dropChance ?? 0)) return;
+    const progress = Math.min(1, state.time / 180);
+    const weaponId = rollWeaponDrop(progress, this.rank.weapon ? 'melee' : null);
+    state.drops.push(
+      new WeaponDrop({ scene: this.scene, position: this.position, weaponId })
+    );
+    state.pushEvent('drop-weapon');
+  }
+
   get isAttacking() {
     return this.state === STATE.WINDUP || this.state === STATE.STRIKE || this.state === STATE.RECOVER;
   }
@@ -162,6 +179,8 @@ export class Zombie extends Enemy {
 
     this.stateTimer += dt;
     this.cooldownTimer = Math.max(0, this.cooldownTimer - dt);
+    this.updateStatuses(dt, state);
+    if (this.dead) return; // burning can finish one off mid-update
 
     // Occasional groan while hunting, so a pack behind you is audible.
     this.groanTimer = (this.groanTimer ?? Math.random() * 4) - dt;
@@ -191,7 +210,7 @@ export class Zombie extends Enemy {
           this.setState(STATE.WINDUP);
           break;
         }
-        moving = this.stepToward(dx, dz, distance, this.speed * dt, player);
+        moving = this.stepToward(dx, dz, distance, this.speed * this.speedMultiplier * dt, player);
         break;
       }
 
@@ -200,7 +219,9 @@ export class Zombie extends Enemy {
         // the strike lands where you are rather than where you were. Slower
         // than a full charge, so sidestepping still beats it.
         this.facing = dampAngle(this.facing, targetYaw, 0.06, dt);
-        moving = this.stepToward(dx, dz, distance, this.speed * this.windupSpeedFactor * dt, player);
+        moving = this.stepToward(
+          dx, dz, distance, this.speed * this.windupSpeedFactor * this.speedMultiplier * dt, player
+        );
         if (this.stateTimer >= this.windupTime) this.setState(STATE.STRIKE);
         break;
 
@@ -214,7 +235,9 @@ export class Zombie extends Enemy {
 
       case STATE.RECOVER:
         this.facing = dampAngle(this.facing, targetYaw, 0.35, dt);
-        moving = this.stepToward(dx, dz, distance, this.speed * this.recoverSpeedFactor * dt, player);
+        moving = this.stepToward(
+          dx, dz, distance, this.speed * this.recoverSpeedFactor * this.speedMultiplier * dt, player
+        );
         if (this.stateTimer >= this.recoverTime) {
           this.cooldownTimer = this.attackCooldown;
           this.setState(STATE.CHASE);

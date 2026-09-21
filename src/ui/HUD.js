@@ -1,4 +1,9 @@
 import * as THREE from 'three';
+import { MODIFIERS } from '../combat/weapons.config.js';
+
+const MODIFIER_LABELS = Object.fromEntries(
+  Object.entries(MODIFIERS).map(([id, mod]) => [id, `${mod.name} — ${mod.blurb}`])
+);
 
 const DAMAGE_NUMBER_LIFETIME = 0.9;
 
@@ -30,6 +35,7 @@ export class HUD {
       healthbars: root.getElementById('healthbars'),
       toast: root.getElementById('toast'),
       abilities: root.getElementById('abilities'),
+      loot: root.getElementById('loot'),
       inventory: root.getElementById('inventory'),
       invList: root.getElementById('inv-list'),
       dead: root.getElementById('dead'),
@@ -77,6 +83,7 @@ export class HUD {
     this.el.crosshair.style.transform = drawing ? `scale(${1 + (1 - charge) * 0.9})` : 'scale(1)';
 
     this.updateAbilities(state, player);
+    this.updateLootPrompt(state, player);
 
     this.el.meleeChip.classList.toggle('held', player.heldSlot === 'melee');
     this.el.rangedChip.classList.toggle('held', player.heldSlot === 'ranged');
@@ -168,7 +175,8 @@ export class HUD {
       rows.push(`
         <div class="inv-item">
           <div class="inv-head"><span class="inv-name">${melee.name}</span>
-            <span class="inv-slot">Melee</span></div>
+            <span class="inv-slot">${melee.rarity} melee</span></div>
+          ${melee.modifier ? `<p class="inv-empty">${MODIFIER_LABELS[melee.modifier]}</p>` : ''}
           <div class="inv-stats">
             ${stat('Damage', melee.damage)}
             ${stat('Speed', `${melee.speed.toFixed(2)} /s`)}
@@ -184,7 +192,8 @@ export class HUD {
       rows.push(`
         <div class="inv-item">
           <div class="inv-head"><span class="inv-name">${ranged.name}</span>
-            <span class="inv-slot">Ranged</span></div>
+            <span class="inv-slot">${ranged.rarity} ranged</span></div>
+          ${ranged.modifier ? `<p class="inv-empty">${MODIFIER_LABELS[ranged.modifier]}</p>` : ''}
           <div class="inv-stats">
             ${stat('Damage', `${ranged.chargedDamage(0).toFixed(1)} – ${ranged.chargedDamage(1).toFixed(1)}`)}
             ${stat('Draw time', `${ranged.chargeTime.toFixed(2)} s`)}
@@ -242,6 +251,52 @@ export class HUD {
   setInventoryOpen(open, state, player) {
     this.el.inventory.classList.toggle('show', open);
     if (open) this.renderInventory(state, player);
+  }
+
+  /**
+   * The loot prompt. It answers the only question that matters while standing
+   * on a weapon — is this better than mine? — by showing the deltas against
+   * whatever occupies the same slot, so you never have to open a menu mid-fight.
+   */
+  updateLootPrompt(state, player) {
+    const drop = state.nearestDrop;
+    this.el.loot.classList.toggle('show', Boolean(drop));
+    if (!drop) {
+      this.lootShownFor = null;
+      return;
+    }
+    if (this.lootShownFor === drop) return;
+    this.lootShownFor = drop;
+
+    const entry = drop.entry;
+    const archetype = drop.archetype;
+    const current = archetype.type === 'melee' ? player.equippedMelee : player.equippedRanged;
+    const rarity = drop.rarity;
+
+    const delta = (label, next, prev, unit = '', better = 'higher') => {
+      const diff = next - prev;
+      const good = better === 'higher' ? diff > 0 : diff < 0;
+      const cls = Math.abs(diff) < 0.005 ? '' : good ? 'up' : 'down';
+      const sign = diff > 0 ? '+' : '';
+      const change = Math.abs(diff) < 0.005 ? '' : ` <span class="${cls}">${sign}${diff.toFixed(1)}</span>`;
+      return `<span>${label} ${next.toFixed(1)}${unit}${change}</span>`;
+    };
+
+    const modifier = entry.modifier
+      ? `<div class="loot-mod">${MODIFIER_LABELS[entry.modifier] ?? entry.modifier}</div>`
+      : '';
+
+    this.el.loot.style.setProperty('--loot-colour', `#${rarity.colour.toString(16).padStart(6, '0')}`);
+    this.el.loot.innerHTML = `
+      <div class="loot-rarity">${rarity.name} · ${archetype.type}</div>
+      <div class="loot-name">${entry.name}</div>
+      ${modifier}
+      <div class="loot-stats">
+        ${delta('DMG', entry.damage, current?.baseDamage ?? 0)}
+        ${delta('SPD', entry.speed, current?.baseSpeed ?? 0, '/s')}
+        ${delta('RNG', archetype.range, current?.range ?? 0, ' m')}
+      </div>
+      <div class="take">Press <kbd>F</kbd> to take · drops what you carry</div>`;
   }
 
   /** Brief centred message — mute state, mode changes. */

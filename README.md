@@ -39,6 +39,7 @@ npm run verify       # headless acceptance test, writes screenshot.png
 | `E` | Dash — roll, invulnerable, cuts what you pass through |
 | `I` | Inventory (pauses) |
 | `V` | Toggle first person / top-down |
+| `F` | Take the weapon you are standing on |
 | `M` | Mute |
 | `H` / `Q` | Debug: hurt yourself / reset the scene |
 
@@ -291,6 +292,52 @@ in body space and the nocking point half a metre behind it — from the left sho
 are `z = 0.75` and `z = 1.32`, both exactly one arm length away, so the hand reaches the
 bow at rest and the anchor at full draw.
 
+## 54 weapons, and where they come from
+
+Six archetypes crossed with nine families:
+
+```
+             rusted  iron  steel  silvered  bone  ember  frost  storm  grave
+  sword         ·     ·      ·        ·       ·     ·      ·      ·      ·
+  scythe        ·     ·      ·        ·       ·     ·      ·      ·      ·
+  daggers       ·     ·      ·        ·       ·     ·      ·      ·      ·
+  shortbow      ·     ·      ·        ·       ·     ·      ·      ·      ·
+  bow           ·     ·      ·        ·       ·     ·      ·      ·      ·
+  crossbow      ·     ·      ·        ·       ·     ·      ·      ·      ·
+                common ──────────────────────────────────────► legendary
+```
+
+Crossing two small tables beats hand-writing fifty entries, and it keeps every one of
+them meaningful: the **archetype decides how a weapon plays** (a scythe is slow and cuts a
+170° arc, daggers are fast and reach 1.6 m) and the **family decides how good it is and
+what else it does**. So a Rusted Scythe still feels like a scythe, and a Gravebound Sword
+is a sword you would fight over.
+
+Every family from Silvered up carries a modifier, and none of them are just labels:
+
+| Modifier | Family | What it does |
+| --- | --- | --- |
+| Piercing | Silvered | Ignores armour — the answer to Mailed and Revenant zombies |
+| Keen | Bone | 25% chance to hit for double |
+| Burning | Ember | 6 damage/sec for 3 seconds after the hit |
+| Chilling | Frost | Slows the target by 45% for 2.5 seconds |
+| Arcing | Storm | Half the damage jumps to a nearby enemy |
+| Leeching | Gravebound | Heals you for a fifth of what you deal |
+
+Both the melee arc and the projectile system route damage through one `applyWeaponHit`, so
+a modifier behaves the same whether it was swung or shot, and a new one means touching one
+file rather than every attack path.
+
+**Zombies drop them.** Chance scales with rank — 10% for a Risen, 55% for a Revenant — and
+what it was carrying hints at what it drops. Family weights slide toward the good stuff as
+a run goes on, so loot improves without a separate difficulty dial.
+
+Stepping on a weapon never swaps it: losing the sword you are winning with because you
+walked over a rusted dagger would be miserable. Stand on it and the HUD answers the only
+question that matters — *is this better than mine?* — with the deltas against whatever is
+in that slot. Press `F` to take it, and the one you were holding lands at your feet, so a
+swap is never a loss.
+
 ## Arrows are a resource, not a magazine
 
 There is no reload. The quiver on your back holds **12 arrows**, it visibly empties as you
@@ -491,6 +538,7 @@ src/
     Zombie.js               chase + telegraphed melee attack state machine
     Skeleton.js             kiting archer: holds a range band, draws, looses
     ArrowBundle.js          ground pickup that refills the quiver
+    WeaponDrop.js           loot on the floor, with a rarity ring
     HumanoidRig.js          primitive humanoid + hand/back sockets + poses
     weaponModels.js         blockout sword and bow props
   combat/
@@ -499,7 +547,8 @@ src/
     RangedWeapon.js         ammo, reload, projectile spawning
     ProjectileSystem.js     ballistic arrows, gravity, swept collision, ground stick
                             (arrow art is shared with the bow's nocked arrow)
-    weapons.config.js       stat table (Phase 1: sword + bow only)
+    weapons.config.js       the 54-weapon catalogue: archetypes x families
+    damage.js               one path from a weapon's damage to an enemy's problem
   abilities/
     Ability.js              base class: cooldown, cost, trigger bookkeeping
     Mend.js                 the heal (Q)
@@ -522,7 +571,7 @@ tools/
 mouse clicks, and waits on game state rather than wall-clock sleeps (headless software
 rendering runs at ~10 fps, so fixed sleeps mean nothing).
 
-**68/68 checks passing**, covering: boot and render; WASD movement; mouse aim; melee swing
+**83/83 checks passing**, covering: boot and render; WASD movement; mouse aim; melee swing
 and damage numbers; bow draw, release, travel, arc height, ground stick and hit; reload;
 player hit reaction; zombie chase, telegraph, strike, mid-windup movement and death;
 skeleton draw, loose, damage and range keeping; team-correct arrows; charge scaling for
@@ -549,6 +598,13 @@ PASS  heavy hits freeze the frame and shake the camera  (56 ms of hit stop)
 PASS  the world holds still during hit stop  (frames still render, entities do not move)
 PASS  you cannot be hit mid-dash  (took 0 from a 40 damage hit during the roll)
 PASS  the dash cuts what it passes through  (12 damage in passing)
+PASS  the catalogue holds at least 50 weapons  (54 weapons: 6 archetypes x 9 families)
+PASS  every weapon in the catalogue builds and is playable  (54/54)
+PASS  a zombie drops a weapon where it fell  (Steel Daggers)
+PASS  F equips it  (Iron Sword -> Storm Scythe)
+PASS  the weapon you were holding lands at your feet  (dropped Iron Sword)
+PASS  Piercing ignores armour  (11 through plate vs 15 piercing)
+PASS  Arcing jumps to a nearby enemy  (10 to the neighbour)
 PASS  arrows on the back match the arrows you have  (12 shown at full, 4 shown at 4)
 PASS  walking over a bundle refills the quiver  (2 -> 7 arrows)
 PASS  IK puts both hands on their targets  (bow hand off by 0.9 cm, draw hand 2.0 cm)
@@ -557,7 +613,7 @@ PASS  armoured zombies wear armour and soak damage  (took 17 vs 20, defense 3)
 PASS  Q heals you  (40 -> 72 health)
 PASS  the heal goes on cooldown  (7s cooldown, 7.0s left)
 
-68/68 checks passed
+83/83 checks passed
 ```
 
 ## Deliberately not built yet

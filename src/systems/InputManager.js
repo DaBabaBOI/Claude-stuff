@@ -31,6 +31,7 @@ const KEY_BINDINGS = {
   KeyP: 'debug-reset',
   KeyV: 'toggle-view',
   KeyM: 'mute',
+  KeyF: 'interact',
   KeyI: 'inventory',
   Tab: 'inventory',
   Space: 'jump',

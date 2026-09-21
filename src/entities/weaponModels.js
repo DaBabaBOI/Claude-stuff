@@ -131,7 +131,7 @@ export const BOW_SPAN = 2 * BOW_RADIUS * Math.sin(TIP_ANGLE);
 /** How far the resting string sits behind the grip: about 0.25 m. */
 export const BOW_BRACE = BOW_RADIUS * (1 - Math.cos(TIP_ANGLE));
 
-function createBow() {
+function createBow({ radius = BOW_RADIUS, stock = false } = {}) {
   const group = new THREE.Group();
 
   /**
@@ -148,12 +148,12 @@ function createBow() {
    * string is a chord on the +Y side, nearest the face.
    */
   const art = new THREE.Group();
-  art.position.y = BOW_RADIUS; // grip sits at the riser's middle, i.e. the socket
+  art.position.y = radius; // grip sits at the riser's middle, i.e. the socket
   art.rotation.y = 0.14;       // a slight deliberate cant, off a level hand
   group.add(art);
 
   const riser = new THREE.Mesh(
-    new THREE.TorusGeometry(BOW_RADIUS, 0.028, 6, 18, BOW_ARC),
+    new THREE.TorusGeometry(radius, 0.028, 6, 18, BOW_ARC),
     WOOD
   );
   riser.rotation.y = Math.PI / 2; // ring plane XY -> ZY
@@ -171,8 +171,8 @@ function createBow() {
   //              ●── nock (follows the draw hand exactly)
   //             ╱
   //        tip ●
-  const tipZ = BOW_RADIUS * Math.sin(TIP_ANGLE);
-  const tipY = -BOW_RADIUS * Math.cos(TIP_ANGLE);
+  const tipZ = radius * Math.sin(TIP_ANGLE);
+  const tipY = -radius * Math.cos(TIP_ANGLE);
   const TIP_TOP = new THREE.Vector3(0, tipY, tipZ);
   const TIP_BOTTOM = new THREE.Vector3(0, tipY, -tipZ);
   const restNock = new THREE.Vector3(0, tipY, 0);
@@ -198,7 +198,7 @@ function createBow() {
    * Pointing the arrow straight down the bow's axis instead leaves it floating
    * beside the bow, since the draw hand is off to one side of the centreline.
    */
-  const GRIP = new THREE.Vector3(0, -BOW_RADIUS, 0);
+  const GRIP = new THREE.Vector3(0, -radius, 0);
   const ARROW_FORWARD = new THREE.Vector3(0, 0, -1); // the model's own nose
 
   const _up = new THREE.Vector3(0, 1, 0);
@@ -253,7 +253,83 @@ function createBow() {
     }
   };
 
+  if (stock) {
+    // A crossbow is a bow on a stock: the same string machinery, with a body
+    // along the flight axis and a short, stiff prod.
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.78, 0.11), WOOD);
+    body.position.y = -radius + 0.18;
+    body.castShadow = true;
+    art.add(body);
+
+    const lath = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 0.34), STEEL);
+    lath.position.y = -radius - 0.1;
+    art.add(lath);
+  }
+
   group.setNock(null, 0);
+  return group;
+}
+
+/**
+ * Scythe: a long haft with the blade sweeping off the far end, so the silhouette
+ * says "this covers a wide arc" before you have swung it once.
+ */
+function createScythe() {
+  const group = new THREE.Group();
+
+  const haft = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.03, 1.7, 7), WOOD);
+  haft.position.y = -0.72;
+  haft.castShadow = true;
+  group.add(haft);
+
+  const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.2, 6), LEATHER);
+  grip.position.y = -0.1;
+  group.add(grip);
+
+  const blade = new THREE.Mesh(
+    new THREE.TorusGeometry(0.42, 0.035, 5, 12, Math.PI * 0.62),
+    STEEL
+  );
+  blade.position.y = -1.5;
+  blade.rotation.y = Math.PI / 2;
+  blade.rotation.x = Math.PI * 0.5;
+  blade.scale.set(1, 1, 0.35); // flatten it into a blade rather than a tube
+  blade.castShadow = true;
+  group.add(blade);
+
+  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.24, 5), STEEL);
+  tip.position.set(0, -1.92, 0.38);
+  tip.rotation.x = -0.9;
+  group.add(tip);
+
+  return group;
+}
+
+/** A short, fast blade. Wide guard so it reads as a weapon at a distance. */
+function createDagger() {
+  const group = new THREE.Group();
+
+  const pommel = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 6), STEEL);
+  pommel.position.y = 0.08;
+  group.add(pommel);
+
+  const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.16, 6), LEATHER);
+  group.add(grip);
+
+  const guard = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.04, 0.06), STEEL);
+  guard.position.y = -0.09;
+  group.add(guard);
+
+  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.42, 0.02), STEEL);
+  blade.position.y = -0.31;
+  blade.castShadow = true;
+  group.add(blade);
+
+  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.037, 0.14, 4), STEEL);
+  tip.position.y = -0.58;
+  tip.rotation.x = Math.PI;
+  group.add(tip);
+
   return group;
 }
 
@@ -376,11 +452,41 @@ export function createArmour({ helmet = true, chest = true } = {}) {
   return group;
 }
 
-const BUILDERS = { sword: createSword, bow: createBow };
+const BUILDERS = {
+  sword: createSword,
+  scythe: createScythe,
+  daggers: createDagger,
+  bow: () => createBow(),
+  shortbow: () => createBow({ radius: 0.6 }),
+  crossbow: () => createBow({ radius: 0.42, stock: true }),
+};
+
+/**
+ * Tint a weapon for its rarity. Materials are shared between every instance, so
+ * this clones the ones it touches — without that, picking up one Storm Sword
+ * would light up every sword in the world.
+ */
+export function tintWeaponModel(model, colour, intensity = 0.55) {
+  model.traverse((child) => {
+    if (!child.isMesh) return;
+    child.material = child.material.clone();
+    child.material.emissive = new THREE.Color(colour);
+    child.material.emissiveIntensity = intensity;
+  });
+  return model;
+}
+
+/**
+ * How far a weapon tips forward when merely carried. A sword hangs at an angle;
+ * a 1.7 m scythe carried the same way sticks straight out sideways and looks
+ * ridiculous, so it rides closer to upright, like a staff.
+ */
+const CARRY_TILT = { sword: 1, daggers: 1, scythe: 0.22, bow: 0, shortbow: 0, crossbow: 0 };
 
 export function createWeaponModel(name) {
   const built = buildWeaponModel(name);
   built.userData.isWeapon = true;
+  built.userData.carryTilt = CARRY_TILT[name] ?? 1;
   return built;
 }
 

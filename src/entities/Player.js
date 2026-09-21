@@ -98,13 +98,21 @@ export class Player {
 
   // --- Equipment ----------------------------------------------------------
   equipMelee(weapon) {
+    const previous = this.equippedMelee;
     this.equippedMelee = weapon;
+    this.weaponModels.melee?.parent?.remove(this.weaponModels.melee);
     this.weaponModels.melee = createWeaponModel(weapon.model);
     this.attachWeapons();
+    return previous;
   }
 
   equipRanged(weapon) {
+    const previous = this.equippedRanged;
+    // Arrows stay with you, not with the bow — but a smaller quiver cannot hold
+    // more than it holds, and swapping is not a way to conjure ammunition.
+    if (previous) weapon.ammo = Math.min(previous.ammo, weapon.ammoCapacity);
     this.equippedRanged = weapon;
+    this.weaponModels.ranged?.parent?.remove(this.weaponModels.ranged);
     this.weaponModels.ranged = createWeaponModel(weapon.model);
 
     // Arrows live on your back, visibly: the quiver is the ammo counter.
@@ -113,6 +121,15 @@ export class Player {
     this.rig.quiverSocket.add(this.quiver);
 
     this.attachWeapons();
+    return previous;
+  }
+
+  /**
+   * Swap a weapon in, and hand back the one it replaced so the world can put it
+   * on the floor at your feet. A pickup is always a swap, never a loss.
+   */
+  equipWeapon(weapon) {
+    return weapon.type === 'melee' ? this.equipMelee(weapon) : this.equipRanged(weapon);
   }
 
   get invulnerable() {
@@ -266,6 +283,7 @@ export class Player {
     const charge = this.drawStrength;
     const shot = this.equippedRanged.use(state.time, origin, dir, { team: 'player' });
     if (!shot) return false;
+    shot.attacker = this;
     this.projectileSystem.spawn(state, shot);
     state.pushEvent('bow-release', { power: charge });
     return true;

@@ -18,7 +18,13 @@ createServer(async (req, res) => {
   const relative = normalize(urlPath === '/' ? '/index.html' : urlPath).replace(/^(\.\.[/\\])+/, '');
   try {
     const body = await readFile(join(ROOT, relative));
-    res.writeHead(200, { 'content-type': TYPES[extname(relative)] ?? 'application/octet-stream' });
+    res.writeHead(200, {
+      'content-type': TYPES[extname(relative)] ?? 'application/octet-stream',
+      // No caching at all: without explicit headers a browser is free to
+      // heuristically cache a module, and debugging a stale copy of your own
+      // edit is a miserable way to spend an afternoon.
+      'cache-control': 'no-store, must-revalidate',
+    });
     res.end(body);
   } catch {
     res.writeHead(404, { 'content-type': 'text/plain' });

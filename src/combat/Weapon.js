@@ -14,16 +14,8 @@
  * milestone 3. The field exists so nothing has to change shape later.
  */
 export class Weapon {
-  constructor({
-    id,
-    name,
-    type,
-    damage,
-    speed,
-    range,
-    model = null,
-    level = 0,
-  }) {
+  constructor(config) {
+    const { id, name, type, damage, speed, range, model = null, level = 0 } = config;
     this.id = id;
     this.name = name;
     this.type = type;
@@ -32,6 +24,9 @@ export class Weapon {
     this.range = range;
     this.model = model;
     this.level = level;
+    this.rarity = config?.rarity ?? 'common';
+    this.modifier = config?.modifier ?? null;
+    this.archetype = config?.archetype ?? id;
 
     /** Timestamp (GameState.time) at which this weapon may be used again. */
     this.nextReadyAt = 0;

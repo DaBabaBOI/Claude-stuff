@@ -100,6 +100,27 @@
   .ehp.skeleton > i { background: #d9d3bd; }
   .ehp.hurt { outline: 1px solid rgba(255,255,255,0.35); }
 
+  /* Loot prompt: what it is, and whether it is better than what you hold. */
+  #loot {
+    position: absolute; left: 50%; bottom: 150px; transform: translateX(-50%);
+    min-width: 220px; padding: 10px 14px; border-radius: 10px; display: none;
+    background: rgba(10, 13, 20, 0.88); border: 1px solid var(--loot-colour, #b9c2d0);
+    text-align: center;
+  }
+  #loot.show { display: block; }
+  #loot .loot-name { font-weight: 600; color: var(--loot-colour, #e7ecf3); }
+  #loot .loot-rarity {
+    font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.7;
+  }
+  #loot .loot-mod { font-size: 11px; margin-top: 3px; opacity: 0.85; }
+  #loot .loot-stats {
+    display: flex; gap: 12px; justify-content: center; margin-top: 7px; font-size: 11px;
+    font-variant-numeric: tabular-nums;
+  }
+  #loot .up { color: #7fe0a8; }
+  #loot .down { color: #ff8e8e; }
+  #loot .take { margin-top: 8px; font-size: 11px; opacity: 0.8; }
+
   #toast {
     position: absolute; left: 50%; bottom: 92px; transform: translateX(-50%);
     padding: 7px 14px; border-radius: 999px; font-size: 12px;
@@ -186,6 +207,7 @@
       <div><b>Mouse</b> aim &nbsp; <b>LMB</b> swing</div>
       <div><b>Hold RMB</b> draw the bow, release to shoot</div>
       <div>Walk over arrow bundles to refill</div>
+      <div><b>F</b> take the weapon you are standing on</div>
       <div><b>1/2</b> hold weapon &nbsp; <b>I</b> inventory</div>
       <div><b>Q</b> mend (heal) &nbsp; <b>E</b> dash</div>
       <div><b>V</b> first-person / top-down</div>
@@ -195,6 +217,7 @@
     <div id="healthbars"></div>
     <div id="crosshair"></div>
     <div id="toast"></div>
+    <div id="loot"></div>
     <div id="floaters"></div>
     <div id="needs-input">
       <p><b>This one needs a keyboard and mouse.</b><br />

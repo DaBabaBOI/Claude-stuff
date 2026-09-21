@@ -191,6 +191,8 @@ export class RangedWeapon extends Weapon {
       lifetime: this.projectileLifetime,
       team,
       power,
+      weapon: this.id,
+      modifier: this.modifier,
     };
   }
 

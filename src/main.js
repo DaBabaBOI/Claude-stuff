@@ -5,8 +5,9 @@ import { Enemy } from './entities/Enemy.js';
 import { Zombie, ZOMBIE_RANKS, rollRank } from './entities/Zombie.js';
 import { Skeleton } from './entities/Skeleton.js';
 import { ArrowBundle } from './entities/ArrowBundle.js';
+import { WeaponDrop } from './entities/WeaponDrop.js';
 import { ProjectileSystem } from './combat/ProjectileSystem.js';
-import { createMelee, createRanged } from './combat/weapons.config.js';
+import { createWeapon, rollWeaponDrop } from './combat/weapons.config.js';
 import { InputManager } from './systems/InputManager.js';
 import { CameraController, VIEW_FIRST_PERSON, VIEW_TOP_DOWN } from './systems/CameraController.js';
 import { HUD } from './ui/HUD.js';
@@ -42,8 +43,8 @@ const arena = buildArena(scene, envMap);
 const projectiles = new ProjectileSystem(scene);
 
 const player = new Player({ scene, projectileSystem: projectiles });
-player.equipMelee(createMelee('sword'));
-player.equipRanged(createRanged('bow'));
+player.equipMelee(createWeapon('iron-sword'));
+player.equipRanged(createWeapon('iron-bow'));
 player.abilities[0] = new Mend();
 player.abilities[1] = new DashStrike();
 state.player = player;
@@ -138,6 +139,54 @@ function updatePickups(dt) {
   }
 }
 
+// --- Weapons on the floor --------------------------------------------------
+// Stepping on a weapon never swaps it: losing the sword you are winning with
+// because you walked over a rusted dagger would be miserable. You press F, and
+// the HUD shows you what it is and how it compares first.
+function updateDrops(dt) {
+  let nearest = null;
+  let nearestDistance = Infinity;
+
+  for (const drop of state.drops) {
+    drop.update(dt);
+    if (player.dead) continue;
+    const distance = Math.hypot(
+      player.position.x - drop.position.x,
+      player.position.z - drop.position.z
+    );
+    if (drop.inRange(player) && distance < nearestDistance) {
+      nearest = drop;
+      nearestDistance = distance;
+    }
+  }
+  state.nearestDrop = nearest;
+}
+
+function takeNearestDrop() {
+  const drop = state.nearestDrop;
+  if (!drop || player.dead) return false;
+
+  const replaced = player.equipWeapon(createWeapon(drop.weaponId));
+  drop.dispose();
+  state.drops.splice(state.drops.indexOf(drop), 1);
+  state.nearestDrop = null;
+
+  // The old weapon goes on the floor at your feet — a swap, never a loss.
+  if (replaced) {
+    state.drops.push(
+      new WeaponDrop({
+        scene,
+        position: player.position,
+        weaponId: replaced.id,
+      })
+    );
+  }
+
+  hud.showToast(`Equipped ${drop.name}`);
+  state.pushEvent('equip');
+  return true;
+}
+
 function updateWaves(dt) {
   const isSpawned = (e) => e.isZombie || e.isSkeleton;
   const alive = state.enemies.filter((e) => isSpawned(e) && !e.dead).length;
@@ -205,6 +254,7 @@ function handleActions() {
   }
   if (input.justPressed('hold-melee')) player.setHeld('melee');
   if (input.justPressed('hold-ranged')) player.setHeld('ranged');
+  if (input.justPressed('interact')) takeNearestDrop();
   if (input.justPressed('mute')) hud.showToast(audio.toggleMute() ? 'Sound off' : 'Sound on');
   if (input.justPressed('debug-hurt')) player.takeDamage(12, state);
   if (input.justPressed('debug-reset')) resetScene();
@@ -224,6 +274,9 @@ function resetScene() {
   projectiles.clear(state);
   for (const bundle of state.pickups) bundle.dispose();
   state.pickups.length = 0;
+  for (const drop of state.drops) drop.dispose();
+  state.drops.length = 0;
+  state.nearestDrop = null;
   nextWaveAt = state.time + 2;
   nextBundleAt = state.time + 1;
   if (!cameraController.isFirstPerson) cameraController.snapTo(player.position);
@@ -266,6 +319,7 @@ function tick() {
       projectiles.update(dt, state);
       updateWaves(dt);
       updatePickups(dt);
+      updateDrops(dt);
     }
 
     audio.update(state);
@@ -301,6 +355,13 @@ tick();
 window.__game = {
   state, player, input, projectiles, scene, camera, cameraController, hud,
   resetScene, setView, spawnWave, spawnArrowBundle, audio, toggleInventory, rollRank,
+  takeNearestDrop, rollWeaponDrop, createWeapon,
+  /** Test hook: put a specific weapon on the floor. */
+  dropWeapon(weaponId, { x, z }) {
+    const drop = new WeaponDrop({ scene, position: new THREE.Vector3(x, 0, z), weaponId });
+    state.drops.push(drop);
+    return drop;
+  },
   /** Test hook: drop a zombie of a named rank at a spot. */
   spawnRankedZombie(rankId, { x, z }) {
     const rank = ZOMBIE_RANKS.find((r) => r.id === rankId) ?? ZOMBIE_RANKS[0];

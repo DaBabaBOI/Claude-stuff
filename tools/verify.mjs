@@ -1000,6 +1000,221 @@ try {
     dash.vulnerableAfter && dash.remaining > 0,
     `${dash.cooldown}s cooldown`);
 
+  // --- 20. the weapon catalogue -----------------------------------------------
+  await quiet();
+  const catalogue = await page.evaluate(async () => {
+    const mod = await import('/src/combat/weapons.config.js');
+    const ids = new Set(mod.CATALOGUE.map((w) => w.id));
+    const names = new Set(mod.CATALOGUE.map((w) => w.name));
+    const archetypes = new Set(mod.CATALOGUE.map((w) => w.archetype));
+    const families = new Set(mod.CATALOGUE.map((w) => w.family));
+    const rarities = new Set(mod.CATALOGUE.map((w) => w.rarity));
+    // Same archetype, different family: the numbers must actually differ.
+    const rusted = mod.CATALOGUE.find((w) => w.id === 'rusted-sword');
+    const grave = mod.CATALOGUE.find((w) => w.id === 'grave-sword');
+    // Same family, different archetype: must still play differently.
+    const graveScythe = mod.CATALOGUE.find((w) => w.id === 'grave-scythe');
+    return {
+      count: mod.CATALOGUE.length,
+      uniqueIds: ids.size,
+      uniqueNames: names.size,
+      archetypes: [...archetypes],
+      families: families.size,
+      rarities: [...rarities],
+      scaling: grave.damage > rusted.damage * 2,
+      archetypesDiffer: graveScythe.damage !== grave.damage && graveScythe.speed !== grave.speed,
+      sample: grave.name,
+    };
+  });
+  check('the catalogue holds at least 50 weapons', catalogue.count >= 50,
+    `${catalogue.count} weapons: ${catalogue.archetypes.length} archetypes x ${catalogue.families} families`);
+  check('every weapon is distinct',
+    catalogue.uniqueIds === catalogue.count && catalogue.uniqueNames === catalogue.count,
+    `${catalogue.uniqueIds} ids, ${catalogue.uniqueNames} names`);
+  check('families scale a weapon, archetypes change how it plays',
+    catalogue.scaling && catalogue.archetypesDiffer,
+    `e.g. ${catalogue.sample}`);
+  check('rarities span common to legendary', catalogue.rarities.length === 5,
+    catalogue.rarities.join(', '));
+
+  const built = await page.evaluate(async () => {
+    const mod = await import('/src/combat/weapons.config.js');
+    const results = [];
+    for (const entry of mod.CATALOGUE) {
+      const weapon = mod.createWeapon(entry.id);
+      const ok =
+        weapon.name === entry.name &&
+        weapon.damage > 0 &&
+        weapon.speed > 0 &&
+        weapon.range > 0 &&
+        (weapon.type === 'melee' ? weapon.arcDegrees > 0 : weapon.projectileSpeed > 0);
+      results.push(ok);
+    }
+    return { total: results.length, ok: results.filter(Boolean).length };
+  });
+  check('every weapon in the catalogue builds and is playable',
+    built.ok === built.total, `${built.ok}/${built.total}`);
+
+  // --- 21. zombies drop weapons ------------------------------------------------
+  const dropped = await page.evaluate(async () => {
+    const g = window.__game;
+    for (const d of g.state.drops) d.dispose();
+    g.state.drops.length = 0;
+    g.clearZombies();
+    const z = g.spawnRankedZombie('revenant', { x: 5, z: 5 });
+    z.rank = { ...z.rank, dropChance: 1 }; // force it, rather than rolling for luck
+    z.takeDamage(999, g.state, {});
+    await new Promise((r) => requestAnimationFrame(r));
+    const drop = g.state.drops[0];
+    return {
+      count: g.state.drops.length,
+      name: drop?.name ?? null,
+      atCorpse: drop ? Math.hypot(drop.position.x - 5, drop.position.z - 5) < 0.5 : false,
+      hasRarity: Boolean(drop?.rarity?.name),
+    };
+  });
+  check('a zombie drops a weapon where it fell',
+    dropped.count === 1 && dropped.atCorpse && dropped.hasRarity, dropped.name ?? 'nothing');
+
+  // --- 22. picking one up -------------------------------------------------------
+  const pickup = await page.evaluate(async () => {
+    const g = window.__game;
+    for (const d of g.state.drops) d.dispose();
+    g.state.drops.length = 0;
+    g.player.position.set(0, 0, 0);
+    g.player.dead = false;
+    // The previous kill left hit stop running, which freezes the world — and a
+    // frozen world does not notice you standing on anything.
+    g.state.hitStop = 0;
+    const before = g.player.equippedMelee.name;
+    // Let the cleared list settle before spawning, so nothing from an earlier
+    // check can still be the nearest thing when this one looks.
+    await new Promise((r) => requestAnimationFrame(r));
+    g.dropWeapon('storm-scythe', { x: 0, z: 0 });
+    for (let i = 0; i < 20 && g.state.nearestDrop?.weaponId !== 'storm-scythe'; i++) {
+      g.state.hitStop = 0;
+      await new Promise((r) => requestAnimationFrame(r));
+    }
+    const prompted = Boolean(g.state.nearestDrop);
+    const promptVisible = document.getElementById('loot').classList.contains('show');
+    const promptText = document.getElementById('loot').textContent;
+
+    const targeted = g.state.nearestDrop?.weaponId ?? null;
+    const took = g.takeNearestDrop();
+    await new Promise((r) => requestAnimationFrame(r));
+    return {
+      before,
+      prompted,
+      promptVisible,
+      mentionsName: promptText.includes('Storm Scythe'),
+      mentionsCompare: promptText.includes('DMG') && promptText.includes('RNG'),
+      took,
+      targeted,
+      nowEquipped: g.player.equippedMelee.name,
+      modifier: g.player.equippedMelee.modifier,
+      onFloor: g.state.drops.map((d) => d.name),
+    };
+  });
+  check('standing on a weapon prompts, with a comparison',
+    pickup.prompted && pickup.promptVisible && pickup.mentionsName && pickup.mentionsCompare,
+    `targeted ${pickup.targeted ?? 'nothing'}`);
+  check('F equips it', pickup.took && pickup.nowEquipped === 'Storm Scythe',
+    `${pickup.before} -> ${pickup.nowEquipped}`);
+  check('the weapon you were holding lands at your feet',
+    pickup.onFloor.includes(pickup.before), `dropped ${pickup.onFloor.join(', ')}`);
+
+  // --- 23. modifiers actually do something --------------------------------------
+  const mods = await page.evaluate(async () => {
+    const g = window.__game;
+    const { createWeapon, MODIFIERS } = await import('/src/combat/weapons.config.js');
+    const { applyWeaponHit } = await import('/src/combat/damage.js');
+    g.clearZombies();
+
+    const fresh = (rank, x) => {
+      const z = g.spawnRankedZombie(rank, { x, z: -6 });
+      z.state = 'idle';
+      z.aggroRange = 0;
+      z.health = z.maxHealth = 400;
+      return z;
+    };
+    const hit = (weaponId, target, attacker = g.player) =>
+      applyWeaponHit({
+        weapon: createWeapon(weaponId),
+        target,
+        state: g.state,
+        attacker,
+        fromX: 0,
+        fromZ: 0,
+        kind: 'melee',
+      });
+
+    // pierce: armour ignored
+    const armoured = fresh('mailed', -8);
+    const plain = hit('steel-sword', armoured);
+    const pierced = hit('silvered-sword', armoured);
+
+    // crit: forced roll
+    const dummy = fresh('risen', -4);
+    const realRandom = Math.random;
+    Math.random = () => 0; // always crit
+    const critDamage = hit('bone-sword', dummy);
+    Math.random = () => 0.99; // never crit
+    const normalDamage = hit('bone-sword', dummy);
+    Math.random = realRandom;
+
+    // burn: keeps hurting after the hit
+    const burning = fresh('risen', 0);
+    hit('ember-sword', burning);
+    const afterHit = burning.health;
+    for (let i = 0; i < 40 && burning.burn; i++) {
+      burning.updateStatuses(0.05, g.state);
+    }
+    const afterBurn = burning.health;
+
+    // chill: slowed
+    const chilled = fresh('risen', 4);
+    const speedBefore = chilled.speedMultiplier;
+    hit('frost-sword', chilled);
+    const speedAfter = chilled.speedMultiplier;
+
+    // shock: jumps to a neighbour
+    const primary = fresh('risen', 8);
+    const neighbour = fresh('risen', 9.5);
+    const neighbourBefore = neighbour.health;
+    hit('storm-sword', primary);
+    const neighbourAfter = neighbour.health;
+
+    // leech: heals the attacker
+    g.player.health = 50;
+    const healthBefore = g.player.health;
+    const leechTarget = fresh('risen', 12);
+    hit('grave-sword', leechTarget);
+    const healthAfter = g.player.health;
+
+    g.clearZombies();
+    return {
+      plain, pierced,
+      critDamage, normalDamage,
+      burnTicked: afterHit - afterBurn,
+      speedBefore, speedAfter,
+      shockDealt: neighbourBefore - neighbourAfter,
+      healed: healthAfter - healthBefore,
+      modifierCount: Object.keys(MODIFIERS).length,
+    };
+  });
+  check('Piercing ignores armour', mods.pierced > mods.plain,
+    `${mods.plain} through plate vs ${mods.pierced} piercing`);
+  // Damage is rounded on the way in, so a 15.6 hit reads 16 and its double 31.
+  check('Keen crits for double', Math.abs(mods.critDamage - mods.normalDamage * 2) <= 1,
+    `${mods.normalDamage} -> ${mods.critDamage}`);
+  check('Burning keeps burning after the hit', mods.burnTicked > 0,
+    `${mods.burnTicked} damage over time`);
+  check('Chilling slows the target', mods.speedAfter < mods.speedBefore,
+    `speed x${mods.speedAfter.toFixed(2)}`);
+  check('Arcing jumps to a nearby enemy', mods.shockDealt > 0,
+    `${mods.shockDealt} to the neighbour`);
+  check('Leeching heals you', mods.healed > 0, `+${mods.healed} health`);
+
   await page.screenshot({ path: process.env.SHOT ?? 'screenshot.png' });
   check('no console or page errors', errors.length === 0, errors.slice(0, 2).join(' | '));
 } finally {

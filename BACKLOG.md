@@ -83,11 +83,16 @@ Still to do:
 
 ---
 
-## Inventory
+## Inventory and loot
 
-The panel is read-only: it shows what you carry and the numbers behind it, and
-nothing more. Wants: swapping between carried weapons, comparing two items side
-by side, and showing the upgrade level once milestone 3 exists.
+The panel is read-only: it shows the two weapons you hold and the numbers
+behind them. With 54 weapons in the world it now wants to be a real inventory —
+carrying more than two, comparing side by side, and showing the upgrade level
+once milestone 3 exists.
+
+Loot itself still wants: a drop cap so the floor does not fill up over a long
+run, despawn timers on commons, and a filter so a Rusted anything stops
+dropping once you are deep enough in.
 
 ## Milestones not started
 
@@ -95,7 +100,7 @@ From the original build spec, in order:
 
 | Milestone | Plug point that already exists |
 | --- | --- |
-| 2. Full weapon roster (scythe, daggers, shortbow, crossbow) | `weapons.config.js` — add stat entries; the classes already carry every field, including `chargeTime: 0` for a crossbow's instant trigger |
+| 2. Full weapon roster | **Done, and then some**: 54 weapons from 6 archetypes x 9 families, dropped by zombies. Wants: dual-wielding for daggers (the off hand is free when melee is held), and per-archetype attack animations — a scythe still swings like a sword |
 | 3. Armour + upgrades | `Player.equippedArmor` with `defense` / `staminaRegen` / `moveSpeedModifier` reading through it; `Weapon.level` and the `damage`/`speed` getters are where the curve goes |
 | 4. Three abilities | **Slot 1 is Mend (heal, `Q`), slot 2 is Dash Strike (`E`)**, both on `Ability` in `src/abilities/`. Slot 3 is empty — volley from the spec is the natural fit, and `RangedWeapon.use()` already takes a charge and a direction, so a spread is a loop over it |
 | 5. HUD polish | Cooldown sweeps, hit stop and screen shake are **in**. Still wanted: damage numbers that scale with the hit, a kill flourish, and a directional indicator for damage taken off-screen |

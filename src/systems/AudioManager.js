@@ -197,6 +197,21 @@ export class AudioManager {
         this.tone({ type: 'triangle', from: 520, to: 340, duration: 0.14, gain: 0.16 });
         break;
 
+      case 'drop-weapon':
+        this.tone({ type: 'sine', from: 880, to: 1320, duration: 0.18, gain: 0.2 });
+        this.tone({ type: 'sine', from: 1320, to: 1760, duration: 0.22, gain: 0.12, delay: 0.1 });
+        break;
+
+      case 'equip':
+        this.noise({ duration: 0.12, gain: 0.25, from: 2600, to: 900, q: 1.5 });
+        this.tone({ type: 'triangle', from: 300, to: 520, duration: 0.16, gain: 0.2 });
+        break;
+
+      case 'shock':
+        this.noise({ duration: 0.14, gain: 0.3, type: 'highpass', from: 3200, to: 1600 });
+        this.tone({ type: 'sawtooth', from: 1400, to: 500, duration: 0.12, gain: 0.14 });
+        break;
+
       case 'wave':
         this.tone({ type: 'square', from: 180, to: 178, duration: 0.18, gain: 0.2 });
         this.tone({ type: 'square', from: 135, to: 133, duration: 0.34, gain: 0.22, delay: 0.19 });
