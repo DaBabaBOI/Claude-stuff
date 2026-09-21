@@ -60,13 +60,16 @@ function T(par,chars,opts){
 }
 // Filled rather than outlined: a solid mark with a white ring reads on a white card, on the
 // grey page background and on the coloured panels alike.
-function badge(parent,num){
-  const b=al(parent,'HORIZONTAL',{name:'Note '+num,align:'CENTER',justify:'CENTER',r:999,fill:C.pu,w:24,h:24});
-  b.strokes=S(C.w); b.strokeWeight=2;
-  b.effects=[{type:'DROP_SHADOW',color:{r:0.16,g:0.13,b:0.44,a:0.30},offset:{x:0,y:1},radius:4,spread:0,visible:true,blendMode:'NORMAL'}];
-  T(b,String(num),{sz:12,st:'Bold',c:C.w});
+function badge(parent,num,size){
+  size = size || 26;
+  const b=al(parent,'HORIZONTAL',{name:'Note '+num,align:'CENTER',justify:'CENTER',r:999,fill:C.pu,w:size,h:size});
+  b.strokes=S(C.w); b.strokeWeight=size>=32?2.5:2;
+  b.effects=[{type:'DROP_SHADOW',color:{r:0.16,g:0.13,b:0.44,a:0.30},offset:{x:0,y:2},radius:size>=32?6:4,spread:0,visible:true,blendMode:'NORMAL'}];
+  T(b,String(num),{sz:Math.round(size*0.46*10)/10,st:'Bold',c:C.w});
   return b;
 }
+const PIN=34;   // badge size on the designs
+const DOT=26;   // badge size in the notes panel
 
 const SPEC = [
 ['01 Sign in', [
@@ -77,8 +80,8 @@ const SPEC = [
  [{n:'Btn/Sign in'},'Sign in button: the only filled button on the screen, so the primary action is never ambiguous.'],
  [{n:'Code'},'Class code row: six boxes with the first three filled, making the format obvious without a help label.']]],
 ['02 Dashboard', [
- [{n:'Top bar',at:[690,21]},'Top bar: search, streak, points and avatar stay in the same place on every screen, so navigation is learned once.'],
- [{n:'Sidebar',at:[104,446]},'Sidebar: five destinations with the current one filled in the brand gradient for an unmistakable active state.'],
+ [{n:'Top bar',at:[690,32]},'Top bar: search, streak, points and avatar stay in the same place on every screen, so navigation is learned once.'],
+ [{n:'Sidebar',at:[104,450]},'Sidebar: five destinations with the current one filled in the brand gradient for an unmistakable active state.'],
  [{t:'Due this week',up:2},'Stat cards: four numbers, each with its own accent colour, so overdue reads as urgent before it is read.'],
  [{t:'Your tasks',up:2},'Task list: every row carries a class chip and a due chip, colour coded by urgency rather than by class.'],
  [{t:'This week',up:2},'Week calendar: today is filled and an amber dot marks the day a deadline lands.'],
@@ -165,13 +168,13 @@ for (const entry of SPEC) {
       if (t) { node=t; const lv=ref.up||0; for (let k=0;k<lv && node.parent;k++) node=node.parent; }
     }
     if (!node) { failed.push(i+1); totalMissing++; continue; }
-    const bd = badge(screen, i+1);
+    const bd = badge(screen, i+1, PIN);
     bd.layoutPositioning='ABSOLUTE';
-    if (ref.at) { bd.x=ref.at[0]; bd.y=ref.at[1]; }
+    if (ref.at) { bd.x=ref.at[0]-PIN/2; bd.y=ref.at[1]-PIN/2; }
     else {
       const nb = node.absoluteBoundingBox;
-      bd.x = Math.max(6, nb.x - sb.x - 12);
-      bd.y = Math.max(6, nb.y - sb.y - 12);
+      bd.x = Math.max(6, nb.x - sb.x - PIN/2);
+      bd.y = Math.max(6, nb.y - sb.y - PIN/2);
     }
     placed++; totalBadges++;
   }
@@ -192,7 +195,7 @@ for (const entry of SPEC) {
     const col=al(cols,'VERTICAL',{gap:14,fw:true});
     for (let i=c2*half;i<Math.min((c2+1)*half,entry[1].length);i++){
       const row=al(col,'HORIZONTAL',{gap:12,align:'MIN',fw:true});
-      badge(row,i+1);
+      badge(row,i+1,DOT);
       T(row,entry[1][i][1],{sz:14,c:C.body,lh:21,fw:true});
     }
   }
