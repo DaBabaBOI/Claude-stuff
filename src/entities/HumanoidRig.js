@@ -28,6 +28,8 @@ const SHOULDER_Y = 1.42;
 const ARM_LENGTH = 0.7;
 const UPPER_ARM = 0.37;
 const FOREARM = ARM_LENGTH - UPPER_ARM;
+const THIGH = 0.42;
+const SHIN = LEG_LENGTH - THIGH;
 const TORSO_Y = 1.15;
 
 export const RIG_STATES = /** @type {const} */ ([
@@ -63,19 +65,57 @@ function limb(geometry, material, length) {
  * -Y — so the existing FK poses still address the shoulder exactly as before,
  * and the elbow is one extra rotation on top.
  */
-function buildArm(upperGeometry, foreGeometry, material) {
+function buildArm(upperGeometry, foreGeometry, material, jointGeometry, handGeometry) {
   const shoulder = limb(upperGeometry, material, UPPER_ARM);
   shoulder.rotation.order = 'YXZ';
+
+  // A ball at each joint. Without one, a rotated limb leaves a wedge of empty
+  // space at the shoulder and the body reads as disconnected parts — which is
+  // most of what made the blockout look uncanny.
+  const shoulderBall = new THREE.Mesh(jointGeometry, material);
+  shoulderBall.castShadow = true;
+  shoulder.add(shoulderBall);
 
   const elbow = limb(foreGeometry, material, FOREARM);
   elbow.position.y = -UPPER_ARM;
   shoulder.add(elbow);
 
+  const elbowBall = new THREE.Mesh(jointGeometry, material);
+  elbowBall.scale.setScalar(0.82);
+  elbowBall.castShadow = true;
+  elbow.add(elbowBall);
+
   const hand = new THREE.Object3D();
   hand.position.y = -FOREARM - 0.02;
   elbow.add(hand);
 
+  const fist = new THREE.Mesh(handGeometry, material);
+  fist.castShadow = true;
+  hand.add(fist);
+
   return { shoulder, elbow, hand };
+}
+
+function buildLeg(thighGeometry, shinGeometry, material, jointGeometry, footGeometry) {
+  const hip = limb(thighGeometry, material, THIGH);
+  const hipBall = new THREE.Mesh(jointGeometry, material);
+  hipBall.castShadow = true;
+  hip.add(hipBall);
+
+  const knee = limb(shinGeometry, material, SHIN);
+  knee.position.y = -THIGH;
+  hip.add(knee);
+
+  const kneeBall = new THREE.Mesh(jointGeometry, material);
+  kneeBall.scale.setScalar(0.85);
+  knee.add(kneeBall);
+
+  const foot = new THREE.Mesh(footGeometry, material);
+  foot.position.set(0, -SHIN + 0.04, -0.07);
+  foot.castShadow = true;
+  knee.add(foot);
+
+  return { hip, knee };
 }
 
 /**
@@ -212,21 +252,48 @@ export class HumanoidRig {
     this.body.add(head);
     this.head = head;
 
-    // A nose-like wedge so you can always tell which way the character faces.
-    const brow = new THREE.Mesh(
-      new THREE.BoxGeometry(0.1, 0.06, 0.12),
+    const neck = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.1, 0.12, 0.14, 8),
+      this.materials.skin
+    );
+    neck.position.y = 1.62;
+    this.body.add(neck);
+    this.neck = neck;
+
+    /**
+     * A face, rather than the dark visor bar this used to have. Two eyes read
+     * as a character; a horizontal slab reads as a blindfolded mannequin, which
+     * is exactly how it looked.
+     */
+    const brow = new THREE.Group();
+    const eyeGeometry = new THREE.SphereGeometry(0.038, 8, 6);
+    const eyeMaterial = new THREE.MeshStandardMaterial({ color: 0x14161c, roughness: 0.3 });
+    for (const side of [-1, 1]) {
+      const eye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+      eye.position.set(side * 0.075, 1.8, -0.163);
+      brow.add(eye);
+    }
+    const browLine = new THREE.Mesh(
+      new THREE.BoxGeometry(0.22, 0.028, 0.05),
       this.materials.accent
     );
-    brow.position.set(0, 1.79, -0.18);
+    browLine.position.set(0, 1.858, -0.155);
+    browLine.rotation.x = -0.25;
+    brow.add(browLine);
     this.body.add(brow);
     this.brow = brow;
 
-    const upperGeometry = new THREE.CylinderGeometry(0.088, 0.078, UPPER_ARM, 8);
-    const foreGeometry = new THREE.CylinderGeometry(0.075, 0.066, FOREARM, 8);
-    const legGeometry = new THREE.CylinderGeometry(0.11, 0.095, LEG_LENGTH, 8);
+    const upperGeometry = new THREE.CylinderGeometry(0.088, 0.078, UPPER_ARM, 10);
+    const foreGeometry = new THREE.CylinderGeometry(0.075, 0.066, FOREARM, 10);
+    const thighGeometry = new THREE.CylinderGeometry(0.12, 0.105, THIGH, 10);
+    const shinGeometry = new THREE.CylinderGeometry(0.1, 0.085, SHIN, 10);
+    const armJoint = new THREE.SphereGeometry(0.092, 10, 8);
+    const legJoint = new THREE.SphereGeometry(0.115, 10, 8);
+    const handGeometry = new THREE.SphereGeometry(0.082, 8, 7);
+    const footGeometry = new THREE.BoxGeometry(0.17, 0.1, 0.28);
 
-    const armL = buildArm(upperGeometry, foreGeometry, this.materials.skin);
-    const armR = buildArm(upperGeometry, foreGeometry, this.materials.skin);
+    const armL = buildArm(upperGeometry, foreGeometry, this.materials.skin, armJoint, handGeometry);
+    const armR = buildArm(upperGeometry, foreGeometry, this.materials.skin, armJoint, handGeometry);
     this.shoulderL = armL.shoulder;
     this.elbowL = armL.elbow;
     this.shoulderL.position.set(-0.34, SHOULDER_Y, 0);
@@ -242,10 +309,14 @@ export class HumanoidRig {
     //   rotation.z  push out to the side
     this.body.add(this.shoulderL, this.shoulderR);
 
-    this.hipL = limb(legGeometry, this.materials.accent, LEG_LENGTH);
+    const legL = buildLeg(thighGeometry, shinGeometry, this.materials.accent, legJoint, footGeometry);
+    const legR = buildLeg(thighGeometry, shinGeometry, this.materials.accent, legJoint, footGeometry);
+    this.hipL = legL.hip;
     this.hipL.position.set(-0.15, HIP_Y, 0);
-    this.hipR = limb(legGeometry, this.materials.accent, LEG_LENGTH);
+    this.hipR = legR.hip;
     this.hipR.position.set(0.15, HIP_Y, 0);
+    this.kneeL = legL.knee;
+    this.kneeR = legR.knee;
     this.body.add(this.hipL, this.hipR);
 
     /**
@@ -267,9 +338,11 @@ export class HumanoidRig {
     this.backSocket = new THREE.Object3D();
     // Slung diagonally: grip at the lower right of the back, weapon extending
     // up and to the left. Pushed clear of the torso so nothing intersects it.
-    this.backSocket.position.set(0.14, TORSO_Y - 0.12, 0.34);
-    this.backSocket.rotation.set(-0.3, 0, -2.5);
-    this.backSocket.scale.setScalar(0.8);
+    this.backSocket.position.set(0.16, TORSO_Y - 0.05, 0.33);
+    this.backSocket.rotation.set(-0.22, 0, -2.45);
+    // Stowed gear is scaled well down: at full size a 1.2 m bow slung on the
+    // back reads as a spear sticking through the character.
+    this.backSocket.scale.setScalar(0.45);
 
     // Quiver rides the other shoulder so it never fights the stowed weapon.
     this.quiverSocket = new THREE.Object3D();
@@ -297,6 +370,20 @@ export class HumanoidRig {
   }
 
   /**
+   * What is actually being held, as opposed to what happens to be first in the
+   * socket's child list — the hands have fist meshes of their own now, so
+   * indexing children[0] picks up a hand and silently stops the bow working.
+   */
+  get heldBow() {
+    return this.offHandSocket.children.find((child) => typeof child.setNock === 'function') ?? null;
+  }
+
+  /** The weapon in the main hand, if any (the fist is not a weapon). */
+  get heldWeapon() {
+    return this.handSocket.children.find((child) => child.userData?.isWeapon) ?? null;
+  }
+
+  /**
    * Orient the bow so its face squares up to the arrow, standing upright.
    *
    * Left alone, the bow inherits the hand's orientation — and the hand's roll
@@ -315,7 +402,7 @@ export class HumanoidRig {
    * own cant is then applied on top of a known-square starting point.
    */
   alignBow(drawHandWorld) {
-    const bow = this.offHandSocket.children[0];
+    const bow = this.heldBow;
     if (!bow) return;
 
     this.offHandSocket.updateWorldMatrix(true, false);
@@ -529,6 +616,9 @@ export class HumanoidRig {
     const smoothing = state.startsWith('attack') || state === 'draw-ranged' ? 0.0005 : 0.002;
     this.hipL.rotation.x = damp(this.hipL.rotation.x, targetLegL, smoothing, dt);
     this.hipR.rotation.x = damp(this.hipR.rotation.x, targetLegR, smoothing, dt);
+    // Knees only bend one way, and mostly on the back swing.
+    this.kneeL.rotation.x = damp(this.kneeL.rotation.x, Math.max(0, -targetLegL) * 0.9 + 0.06, smoothing, dt);
+    this.kneeR.rotation.x = damp(this.kneeR.rotation.x, Math.max(0, -targetLegR) * 0.9 + 0.06, smoothing, dt);
 
     if (!ikHandled) {
       this.shoulderL.rotation.x = damp(this.shoulderL.rotation.x, targetArmLX, smoothing, dt);
@@ -580,8 +670,8 @@ export class HumanoidRig {
     // The held bow, if it has a string, gets told where the draw hand actually
     // is, so the string bends around the hand instead of the hand hovering
     // near a straight cylinder.
-    const held = this.offHandSocket.children[0];
-    if (held?.setNock) {
+    const held = this.heldBow;
+    if (held) {
       const drawing = state === 'draw-ranged';
       if (drawing) {
         this.drawHandSocket.getWorldPosition(this._drawHandWorld);
@@ -615,7 +705,7 @@ export class HumanoidRig {
     this.root.rotation.set(0, 0, 0);
     this.body.rotation.set(0, 0, 0);
     this.body.position.set(0, 0, 0);
-    for (const joint of [this.shoulderL, this.shoulderR, this.hipL, this.hipR]) {
+    for (const joint of [this.shoulderL, this.shoulderR, this.hipL, this.hipR, this.kneeL, this.kneeR]) {
       joint.rotation.set(0, 0, 0);
     }
     this.gripTilt = GRIP_CARRY;

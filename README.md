@@ -440,6 +440,30 @@ and arrows left; the empty armour slot; your three ability slots with their cool
 and your own health, stamina, move speed and defense. Read-only for now — there is
 nothing to swap to yet.
 
+## Graphics
+
+Everything is generated at runtime — no textures to load, no network. Three things do most
+of the work:
+
+- **ACES tone mapping.** Highlights roll off instead of clipping, which is what stops lit
+  metal turning into a white smear.
+- **A real environment map.** A three-stop gradient with a warm patch, wrapped as an
+  equirectangular texture and run through `PMREMGenerator`. Every `MeshStandardMaterial`
+  now has something to reflect; without one, the "metal" in the scene is just grey.
+- **A textured floor.** Procedural flagstones with per-tile colour variation, offset rows
+  and a separate roughness map from the same noise, so the floor catches light unevenly.
+  A single flat colour reads as a placeholder no matter how good the lighting is.
+
+Lighting is a key (the only shadow caster, frustum pulled tight around the arena so its
+texels land where the action is), a cool fill so shadowed faces stay readable, a low rim
+that separates dark characters from a dark floor in top-down, and four flickering braziers
+that give the far corners somewhere darker to be.
+
+The rig gained joints, hands and feet. A ball at each shoulder, elbow, hip and knee closes
+the wedge of empty space a rotated limb used to leave — that gap is most of what made the
+blockout look uncanny — and the face is two eyes and a brow ridge rather than the dark
+visor bar it had, which read as a blindfolded mannequin.
+
 ## Conventions worth knowing
 
 - **Yaw**: `rotation.y = yaw` points an object's local −Z along `(-sin yaw, -cos yaw)`.
@@ -483,6 +507,7 @@ src/
   systems/
     InputManager.js         keyboard/mouse/gamepad → moveVector + aimYaw
     CameraController.js     locked top-down follow camera + first person
+    Environment.js          renderer settings, lighting, env map, arena
     AudioManager.js         runtime-synthesised sound, no asset files
   ui/
     HUD.js                  bars, ammo, draw meter, damage numbers, enemy health bars

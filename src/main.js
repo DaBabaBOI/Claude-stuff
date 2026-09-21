@@ -11,6 +11,12 @@ import { InputManager } from './systems/InputManager.js';
 import { CameraController, VIEW_FIRST_PERSON, VIEW_TOP_DOWN } from './systems/CameraController.js';
 import { HUD } from './ui/HUD.js';
 import { AudioManager } from './systems/AudioManager.js';
+import {
+  buildArena,
+  buildLighting,
+  configureRenderer,
+  createEnvironment,
+} from './systems/Environment.js';
 import { Mend } from './abilities/Mend.js';
 import { DashStrike } from './abilities/DashStrike.js';
 
@@ -18,52 +24,19 @@ const MAX_DELTA = 1 / 20; // never simulate more than a 50 ms step
 
 // --- Renderer / scene ------------------------------------------------------
 const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+configureRenderer(renderer);
 renderer.setSize(innerWidth, innerHeight);
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x11151d);
-scene.fog = new THREE.Fog(0x11151d, 34, 58);
-
 const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 200);
 
-scene.add(new THREE.HemisphereLight(0x9fb8e0, 0x2a2118, 0.9));
-const sun = new THREE.DirectionalLight(0xfff0d8, 1.5);
-sun.position.set(-9, 16, 8);
-sun.castShadow = true;
-sun.shadow.mapSize.set(1024, 1024);
-sun.shadow.camera.left = -25;
-sun.shadow.camera.right = 25;
-sun.shadow.camera.top = 25;
-sun.shadow.camera.bottom = -25;
-scene.add(sun);
+const envMap = createEnvironment(renderer);
+buildLighting(scene);
 
 // --- Arena -----------------------------------------------------------------
 const state = new GameState();
-
-const ground = new THREE.Mesh(
-  new THREE.PlaneGeometry(40, 40),
-  new THREE.MeshStandardMaterial({ color: 0x3b4252, roughness: 1 })
-);
-ground.rotation.x = -Math.PI / 2;
-ground.receiveShadow = true;
-scene.add(ground);
-
-const grid = new THREE.GridHelper(40, 40, 0x55607a, 0x39414f);
-grid.position.y = 0.01;
-scene.add(grid);
-
-const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x2a3140, roughness: 0.95 });
-for (const [x, z, w, d] of [[0, -20, 40, 1], [0, 20, 40, 1], [-20, 0, 1, 40], [20, 0, 1, 40]]) {
-  const wall = new THREE.Mesh(new THREE.BoxGeometry(w, 1.6, d), wallMaterial);
-  wall.position.set(x, 0.8, z);
-  wall.castShadow = true;
-  wall.receiveShadow = true;
-  scene.add(wall);
-}
+const arena = buildArena(scene, envMap);
 
 // --- Entities --------------------------------------------------------------
 const projectiles = new ProjectileSystem(scene);
@@ -296,6 +269,7 @@ function tick() {
     }
 
     audio.update(state);
+    arena.update(state.time);
 
     // In first person the hero turns with the mouse, so the movement basis has
     // to follow them every frame.

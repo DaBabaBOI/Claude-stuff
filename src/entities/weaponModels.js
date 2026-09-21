@@ -379,6 +379,12 @@ export function createArmour({ helmet = true, chest = true } = {}) {
 const BUILDERS = { sword: createSword, bow: createBow };
 
 export function createWeaponModel(name) {
+  const built = buildWeaponModel(name);
+  built.userData.isWeapon = true;
+  return built;
+}
+
+function buildWeaponModel(name) {
   const build = BUILDERS[name];
   if (!build) {
     // Unknown model: a plain box is better than a crash while blocking out.

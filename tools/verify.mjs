@@ -457,7 +457,7 @@ try {
       await new Promise((r) => requestAnimationFrame(r));
     }
     const rig = g.player.rig;
-    const model = rig.offHandSocket.children[0];
+    const model = rig.heldBow;
     const hand = new (g.state.player.position.constructor)();
     rig.drawHandSocket.getWorldPosition(hand);
     const nock = model.userData.nockWorld;
@@ -497,7 +497,7 @@ try {
     for (let i = 0; i < 120 && g.player.drawStrength < 0.99; i++) {
       await new Promise((r) => requestAnimationFrame(r));
     }
-    const model = g.player.rig.offHandSocket.children[0];
+    const model = g.player.rig.heldBow;
     const art = model.children.find((c) => c.type === 'Group');
     const arrow = art.children.find((c) => c.type === 'Group' && c.children.length >= 4);
     const m = arrow.matrixWorld.elements;
@@ -530,7 +530,7 @@ try {
     for (let i = 0; i < 120 && g.player.drawStrength < 0.99; i++) {
       await new Promise((r) => requestAnimationFrame(r));
     }
-    const model = g.player.rig.offHandSocket.children[0];
+    const model = g.player.rig.heldBow;
     const art = model.children.find((c) => c.type === 'Group');
     art.updateWorldMatrix(true, false);
     const m = art.matrixWorld.elements;
@@ -793,7 +793,7 @@ try {
       plainReach: plain.attackRange,
       armedDamage: armed.damage,
       plainDamage: plain.damage,
-      armedHasSword: armed.rig.handSocket.children.length > 0,
+      armedHasSword: Boolean(armed.rig.heldWeapon),
       armouredHasArmour: armoured.rig.body.children.length > plain.rig.body.children.length,
     };
   });
