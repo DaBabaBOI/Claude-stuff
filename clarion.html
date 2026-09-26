@@ -1,0 +1,1115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clarion</title>
+<style>
+  :root{
+    --purple:#6D5DFB;
+    --purple-dark:#5847E0;
+    --blue:#3B82F6;
+    --orange:#EF8B09;
+    --green:#12B76A;
+    --gray:#A3A7BA;
+    --ink:#171923;
+    --ink-soft:#5B6072;
+    --muted:#8B90A3;
+    --bg:#F7F8FC;
+    --card:#FFFFFF;
+    --border:#E6E8F0;
+    --radius-lg:16px;
+    --radius-md:12px;
+    --radius-sm:10px;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);
+    color:var(--ink);
+  }
+  a{color:inherit;text-decoration:none;}
+  button{font-family:inherit;cursor:pointer;}
+  input{font-family:inherit;}
+  ::-webkit-scrollbar{width:8px;height:8px;}
+  ::-webkit-scrollbar-thumb{background:#D8DAE8;border-radius:8px;}
+
+  .pill{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:999px;font-size:12px;font-weight:700;}
+  .btn{border:none;border-radius:999px;padding:9px 20px;font-weight:700;font-size:13.5px;white-space:nowrap;transition:transform .1s ease,opacity .15s ease;}
+  .btn:active{transform:scale(.97);}
+  .btn:disabled{opacity:.45;cursor:not-allowed;}
+  .btn-primary{background:linear-gradient(135deg,var(--purple),var(--blue));color:#fff;box-shadow:0 4px 14px rgba(109,93,251,.30);}
+  .btn-primary:hover:not(:disabled){filter:brightness(1.05);}
+  .btn-ghost{background:#fff;color:var(--ink);border:1px solid var(--border);}
+  .btn-ghost:hover{background:#F3F4FA;}
+  .btn-sm{padding:6px 14px;font-size:12px;}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);}
+  .hidden{display:none !important;}
+  .rule{height:1px;background:var(--border);border:none;margin:0;}
+  .flex-line{flex:1;height:1px;background:var(--border);}
+
+  /* ================= LOGIN ================= */
+  #page-login{display:flex;min-height:100vh;}
+  .login-brand{
+    flex:0 0 43%;
+    background:linear-gradient(160deg,#EFEDFF 0%, #E8F1FF 100%);
+    display:flex;flex-direction:column;justify-content:center;
+    padding:64px;position:relative;overflow:hidden;
+  }
+  .login-brand::before{content:"";position:absolute;width:320px;height:320px;border-radius:50%;background:radial-gradient(circle,rgba(109,93,251,.18),transparent 70%);top:-70px;right:-70px;}
+  .login-brand::after{content:"";position:absolute;width:260px;height:260px;border-radius:50%;background:radial-gradient(circle,rgba(59,130,246,.16),transparent 70%);bottom:-60px;left:-40px;}
+  .brand-mark{display:flex;align-items:center;gap:10px;position:relative;margin-bottom:28px;}
+  .logo-glyph{width:40px;height:40px;border-radius:11px;background:linear-gradient(135deg,var(--purple),var(--blue));display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:17px;flex-shrink:0;}
+  .brand-mark .name{font-size:19px;font-weight:800;}
+  .login-brand h1{font-size:34px;line-height:1.2;margin:0 0 12px;position:relative;max-width:440px;}
+  .login-brand .sub{font-size:15px;color:var(--ink-soft);max-width:420px;line-height:1.6;position:relative;}
+  .feature-list{margin-top:30px;display:flex;flex-direction:column;gap:14px;position:relative;}
+  .feature-item{display:flex;align-items:center;gap:12px;font-size:14px;font-weight:600;color:var(--ink);}
+  .feature-dot{width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(23,25,35,.10);flex-shrink:0;}
+
+  .login-form-side{flex:1;background:#fff;display:flex;align-items:center;justify-content:center;padding:40px;}
+  .login-form{width:100%;max-width:396px;}
+  .login-form h2{font-size:24px;margin:0 0 4px;}
+  .login-form .sub{color:var(--ink-soft);font-size:14px;margin-bottom:22px;}
+
+  .role-toggle{display:flex;background:#F1F2FA;border-radius:999px;padding:4px;margin-bottom:22px;}
+  .role-toggle button{flex:1;border:none;background:transparent;padding:9px 0;border-radius:999px;font-weight:700;font-size:12.5px;color:var(--ink-soft);}
+  .role-toggle button.active{background:#fff;color:var(--purple);box-shadow:0 2px 6px rgba(23,25,35,.10);}
+
+  .auth-tabs{display:flex;background:#F1F2FA;border-radius:10px;padding:4px;margin-bottom:22px;}
+  .auth-tabs button{flex:1;border:none;background:transparent;padding:9px 0;border-radius:8px;font-weight:700;font-size:13px;color:var(--ink-soft);}
+  .auth-tabs button.active{background:#fff;color:var(--ink);box-shadow:0 2px 6px rgba(23,25,35,.08);}
+
+  .field{margin-bottom:16px;}
+  .field label{display:block;font-size:13px;font-weight:700;margin-bottom:6px;color:var(--ink-soft);}
+  .field input{width:100%;height:46px;padding:0 15px;border-radius:10px;border:1px solid var(--border);font-size:14px;background:#FAFAFE;}
+  .field input:focus{outline:2px solid var(--purple);outline-offset:1px;background:#fff;}
+  .forgot-row{display:flex;justify-content:flex-end;margin:-6px 0 16px;font-size:13px;font-weight:600;color:var(--purple);}
+  .or-divider{display:flex;align-items:center;gap:14px;margin:18px 0;font-size:12.5px;color:var(--muted);font-weight:600;}
+  .or-divider .flex-line{background:var(--border);}
+
+  .code-row{display:flex;gap:8px;margin-bottom:18px;}
+  .code-box{flex:1;height:54px;border-radius:10px;border:1px solid var(--border);background:#FAFAFE;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;color:var(--purple);}
+  .code-box.empty{color:var(--muted);background:#fff;}
+  .login-submit{width:100%;height:45px;font-size:14.5px;}
+  .join-view{display:none;}
+  .join-view.active{display:block;}
+  .signin-view.hidden-view{display:none;}
+
+  /* ================= APP SHELL ================= */
+  #app-shell{display:none;min-height:100vh;flex-direction:column;}
+  #app-shell.active{display:flex;}
+  .topbar{
+    height:64px;background:#fff;border-bottom:1px solid var(--border);
+    display:flex;align-items:center;padding:0 24px;gap:20px;flex-shrink:0;
+  }
+  .topbar .brand-mark{margin:0;}
+  .logo-glyph.sm{width:26px;height:26px;border-radius:8px;font-size:12px;}
+  .topbar-search{
+    flex:1;max-width:360px;height:38px;border-radius:10px;background:#F3F4FA;
+    display:flex;align-items:center;gap:10px;padding:0 14px;color:var(--muted);font-size:13.5px;
+  }
+  .topbar-search svg{flex-shrink:0;}
+  .topbar-spacer{flex:1;}
+  .topbar-right{display:flex;align-items:center;gap:10px;}
+  .stat-chip{height:23px;padding:0 12px;border-radius:999px;background:#F1F2FA;display:flex;align-items:center;font-size:12.5px;font-weight:700;color:var(--ink-soft);}
+  .stat-chip.streak{background:#FFF3E6;color:var(--orange);}
+  .stat-chip.points{background:#EFEBFF;color:var(--purple);}
+  .avatar-circ{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--purple),var(--blue));color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0;}
+  .role-badge{padding:4px 11px;border-radius:999px;font-size:11.5px;font-weight:800;}
+  .role-badge.student{background:#EAF1FF;color:var(--blue);}
+  .role-badge.teacher{background:#F1EEFF;color:var(--purple);}
+
+  .app-body{flex:1;display:flex;min-height:0;}
+  .sidebar{width:232px;background:#fff;border-right:1px solid var(--border);padding:18px 14px;display:flex;flex-direction:column;flex-shrink:0;}
+  .nav-item{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;font-size:14px;font-weight:600;color:var(--ink-soft);margin-bottom:4px;}
+  .nav-item .ic{width:18px;text-align:center;font-size:15px;flex-shrink:0;}
+  .nav-item:hover{background:#F5F5FC;color:var(--ink);}
+  .nav-item.active{background:linear-gradient(135deg,#EEEAFF,#E9F1FF);color:var(--purple-dark);}
+  .sidebar-divider{margin:14px 0;height:1px;background:var(--border);flex-shrink:0;}
+  .sidebar-user{margin-top:auto;display:flex;align-items:center;gap:10px;padding:8px 12px;}
+  .sidebar-user .name{font-size:13.5px;font-weight:700;}
+  .sidebar-user .role{font-size:11.5px;color:var(--muted);}
+
+  .main-col{flex:1;overflow-y:auto;min-width:0;}
+  .content{max-width:1207px;padding:26px 30px 60px;}
+  .page-view{display:none;}
+  .page-view.active{display:block;}
+
+  .page-header{display:flex;align-items:center;gap:24px;margin-bottom:26px;flex-wrap:wrap;}
+  .page-header h1{font-size:24px;margin:0 0 4px;}
+  .page-header .sub{font-size:13.5px;color:var(--ink-soft);}
+  .page-header .flex-line{margin:0 4px;}
+
+  /* stat cards */
+  .stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px;}
+  .stat-card{padding:18px 20px;position:relative;}
+  .stat-accent{width:26px;height:4px;border-radius:4px;margin-bottom:14px;}
+  .stat-card .value{font-size:28px;font-weight:800;line-height:1;margin-bottom:8px;}
+  .stat-card .label{font-size:13px;color:var(--ink-soft);font-weight:600;}
+
+  .two-col{display:grid;grid-template-columns:1.55fr 1fr;gap:20px;align-items:start;}
+  .panel{padding:0;overflow:hidden;}
+  .panel-head{display:flex;align-items:center;gap:14px;padding:18px 22px 0;margin-bottom:14px;}
+  .panel-head h3{font-size:15px;margin:0;font-weight:800;}
+  .panel-head .count{font-size:12px;color:var(--ink-soft);}
+  .panel-head .link{font-size:12.5px;font-weight:700;color:var(--purple);}
+  .panel-body{padding:0 22px 20px;}
+
+  .task-row{display:flex;align-items:center;gap:12px;padding:15px 0;border-top:1px solid var(--border);}
+  .task-row:first-child{border-top:none;}
+  .task-check{width:20px;height:20px;border-radius:6px;border:2px solid var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff;font-weight:800;}
+  .task-check.done{background:var(--green);border-color:var(--green);}
+  .task-title{font-size:14.5px;font-weight:700;}
+  .task-title.done{color:var(--muted);text-decoration:line-through;}
+  .task-row .flex-line{margin:0 16px;}
+  .chip{display:inline-flex;align-items:center;height:22px;padding:0 10px;border-radius:999px;font-size:11.5px;font-weight:700;flex-shrink:0;}
+  .class-chip-inline{margin-right:0;}
+
+  /* mini calendar */
+  .mini-cal{display:flex;justify-content:space-between;padding:6px 0;}
+  .mini-cal .day{display:flex;flex-direction:column;align-items:center;gap:8px;flex:1;}
+  .mini-cal .dow{font-size:11px;color:var(--muted);font-weight:700;}
+  .mini-cal .num{font-size:14px;font-weight:700;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;}
+  .mini-cal .num.today{background:var(--purple);color:#fff;}
+  .mini-cal .dot{width:5px;height:5px;border-radius:50%;background:var(--orange);}
+  .mini-cal .dot.none{background:transparent;}
+
+  .ai-suggest-card{margin:16px 22px 0;padding:16px;border-radius:var(--radius-md);background:linear-gradient(135deg,#F5F3FF,#EFF6FF);border:1px solid #E4E1FF;}
+  .ai-suggest-card .who{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:800;color:var(--purple);margin-bottom:10px;}
+  .ai-suggest-card p{font-size:13.5px;line-height:1.5;margin:0 0 12px;color:var(--ink);}
+
+  .discussion-preview{margin:16px 22px 20px;padding:14px 16px;border-radius:var(--radius-md);border:1px solid var(--border);}
+  .discussion-preview .head{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+  .discussion-preview .avatar-circ{width:32px;height:32px;font-size:11px;}
+
+  /* ================= AI HELPER ================= */
+  .ai-layout{display:grid;grid-template-columns:1.95fr 1fr;gap:20px;align-items:start;}
+  .priority-panel{display:flex;flex-direction:column;}
+  .priority-row{display:flex;align-items:center;gap:14px;padding:16px 22px;border-top:1px solid var(--border);}
+  .priority-row:first-child{border-top:none;}
+  .priority-accent{width:4px;align-self:stretch;border-radius:4px;flex-shrink:0;}
+  .priority-title{font-size:14.5px;font-weight:700;margin-bottom:8px;}
+  .ask-bar{display:flex;align-items:center;gap:14px;padding:14px 22px;border-top:1px solid var(--border);background:#FBFBFE;}
+  .ask-bar input{flex:1;border:none;background:transparent;font-size:14px;outline:none;}
+
+  .assistant-msg{display:flex;margin-bottom:14px;}
+  .assistant-msg.from-ai{justify-content:flex-start;}
+  .assistant-msg.from-user{justify-content:flex-end;}
+  .bubble{max-width:82%;padding:12px 14px;border-radius:14px;font-size:13.5px;line-height:1.5;}
+  .bubble.ai{background:#F3F4FA;border-bottom-left-radius:4px;}
+  .bubble.user{background:linear-gradient(135deg,var(--purple),var(--blue));color:#fff;border-bottom-right-radius:4px;}
+  .quick-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;}
+  .source-row{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--ink-soft);margin-bottom:12px;}
+  .source-dot{width:8px;height:8px;border-radius:2px;background:var(--purple);flex-shrink:0;}
+  .safety-note{font-size:12.5px;color:var(--muted);background:#F7F7FB;border-radius:10px;padding:10px 12px;line-height:1.5;}
+
+  /* ================= DISCUSSIONS ================= */
+  .disc-layout{display:grid;grid-template-columns:352px 1fr;gap:20px;align-items:start;height:calc(100vh - 220px);min-height:520px;}
+  .disc-list-panel{display:flex;flex-direction:column;height:100%;overflow:hidden;}
+  .disc-search{margin:16px 16px 12px;height:38px;border-radius:10px;background:#F3F4FA;display:flex;align-items:center;gap:8px;padding:0 12px;color:var(--muted);font-size:13.5px;}
+  .disc-search input{border:none;background:transparent;outline:none;font-size:13.5px;flex:1;color:var(--ink);}
+  .filter-row{display:flex;gap:6px;padding:0 16px 14px;flex-wrap:wrap;}
+  .filter-chip{padding:6px 13px;border-radius:999px;font-size:12px;font-weight:700;border:1px solid var(--border);background:#fff;color:var(--ink-soft);}
+  .filter-chip.active{background:var(--purple);color:#fff;border-color:var(--purple);}
+  .thread-list{overflow-y:auto;flex:1;}
+  .thread-item{padding:14px 16px;border-top:1px solid var(--border);cursor:pointer;position:relative;}
+  .thread-item:first-child{border-top:none;}
+  .thread-item:hover{background:#FAFAFE;}
+  .thread-item.selected{background:#F5F3FF;}
+  .thread-item .top-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+  .thread-item .unread-dot{width:7px;height:7px;border-radius:50%;background:var(--orange);}
+  .thread-item .time{margin-left:auto;font-size:11.5px;color:var(--muted);}
+  .thread-item .title{font-size:14px;font-weight:700;margin-bottom:5px;}
+  .thread-item .preview{font-size:12.5px;color:var(--ink-soft);overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}
+
+  .thread-detail{display:flex;flex-direction:column;height:100%;overflow:hidden;}
+  .thread-detail-head{display:flex;align-items:center;gap:12px;padding:18px 22px;border-bottom:1px solid var(--border);flex-wrap:wrap;}
+  .thread-detail-head h3{font-size:16px;margin:0;}
+  .thread-detail-head .meta{margin-left:auto;font-size:12.5px;color:var(--muted);}
+  .thread-messages{flex:1;overflow-y:auto;padding:18px 22px;}
+  .msg-row{display:flex;gap:14px;margin-bottom:20px;}
+  .msg-row .avatar-circ{flex-shrink:0;}
+  .msg-body{flex:1;min-width:0;}
+  .msg-top{display:flex;align-items:center;gap:8px;margin-bottom:5px;flex-wrap:wrap;}
+  .msg-top .author{font-weight:700;font-size:13.5px;}
+  .msg-top .time{font-size:12px;color:var(--muted);}
+  .msg-text{font-size:13.5px;line-height:1.55;color:var(--ink);}
+  .composer{display:flex;align-items:center;gap:14px;padding:14px 22px;border-top:1px solid var(--border);background:#FBFBFE;}
+  .composer input{flex:1;border:none;background:transparent;font-size:14px;outline:none;}
+
+  /* ================= ROAD TO GLORY ================= */
+  .streak-strip{display:flex;justify-content:space-between;padding:10px 0;}
+  .streak-day{display:flex;flex-direction:column;align-items:center;gap:10px;flex:1;}
+  .streak-day .dow{font-size:12.5px;font-weight:700;color:var(--ink-soft);}
+  .streak-day .mark{width:36px;height:36px;border-radius:50%;background:#F1F2FA;display:flex;align-items:center;justify-content:center;font-size:15px;color:var(--muted);}
+  .streak-day .mark.verified{background:var(--green);color:#fff;}
+  .streak-day .mark.today{background:#fff;border:2px dashed var(--purple);color:var(--purple);}
+  .streak-day .pts{font-size:11.5px;font-weight:700;color:var(--ink-soft);}
+
+  .badge-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
+  .badge-tile{padding:18px 10px;text-align:center;border-radius:var(--radius-md);border:1px solid var(--border);}
+  .badge-tile.locked{border-style:dashed;}
+  .badge-icon{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,var(--purple),var(--blue));margin:0 auto 10px;opacity:1;display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px;}
+  .badge-tile.locked .badge-icon{background:#EEF0F7;color:var(--muted);}
+  .badge-name{font-size:12.5px;font-weight:700;margin-bottom:3px;}
+  .badge-status{font-size:11px;color:var(--muted);}
+  .badge-status.unlocked{color:var(--green);font-weight:700;}
+
+  .reward-row{display:flex;align-items:center;gap:14px;padding:15px 0;border-top:1px solid var(--border);}
+  .reward-row:first-child{border-top:none;}
+  .reward-icon{width:36px;height:36px;border-radius:50%;background:#EFEBFF;color:var(--purple);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;}
+  .reward-name{font-size:14px;font-weight:700;}
+  .reward-cost{font-size:12.5px;color:var(--ink-soft);margin-top:2px;}
+  .reward-progress-track{height:6px;border-radius:4px;background:#EEF0F7;width:150px;margin-top:8px;overflow:hidden;}
+  .reward-progress-fill{height:100%;background:var(--purple);border-radius:4px;}
+
+  .leader-row{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--border);border-radius:8px;}
+  .leader-row:first-child{border-top:none;}
+  .leader-row.me{background:#F5F3FF;margin:0 -12px;padding:12px;border-top:none;}
+  .leader-rank{width:27px;height:27px;border-radius:50%;background:#F1F2FA;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:var(--ink-soft);flex-shrink:0;}
+  .leader-rank.gold{background:#FFF1D6;color:#B8860B;}
+  .leader-rank.silver{background:#F0F0F5;color:#8A8A99;}
+  .leader-rank.bronze{background:#FBE7DA;color:#B5651D;}
+  .leader-name{flex:1;font-size:14px;font-weight:700;}
+  .leader-pts{font-size:14px;font-weight:800;color:var(--purple);}
+  .verify-note{padding:16px;background:#F7F7FB;border-radius:var(--radius-md);font-size:13px;color:var(--ink-soft);line-height:1.5;}
+  .verify-note .t{font-weight:800;color:var(--ink);display:block;margin-bottom:6px;font-size:13.5px;}
+
+  /* ================= MY CLASSES ================= */
+  .class-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+  .class-card{padding:20px;}
+  .class-card-head{display:flex;align-items:center;gap:12px;margin-bottom:16px;}
+  .class-swatch{width:34px;height:34px;border-radius:10px;flex-shrink:0;}
+  .class-card-head .name{font-size:16px;font-weight:800;}
+  .class-card-head .teacher{font-size:12.5px;color:var(--ink-soft);}
+  .class-counts{display:flex;gap:26px;padding:14px 0;border-top:1px solid var(--border);}
+  .class-counts .count{font-size:20px;font-weight:800;}
+  .class-counts .clabel{font-size:11.5px;color:var(--muted);margin-top:4px;}
+  .class-next{display:flex;align-items:center;gap:10px;padding:12px 0;border-top:1px solid var(--border);font-size:13px;font-weight:600;}
+  .class-open-btn{width:100%;margin-top:12px;}
+
+  @media (max-width:1000px){
+    .login-brand{display:none;}
+    .stat-row{grid-template-columns:repeat(2,1fr);}
+    .two-col,.ai-layout,.disc-layout,.class-grid{grid-template-columns:1fr;}
+    .disc-layout{height:auto;}
+    .sidebar{width:70px;}
+    .sidebar .label{display:none;}
+    .sidebar-user .name,.sidebar-user .role{display:none;}
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ LOGIN ============ -->
+<div id="page-login">
+  <div class="login-brand">
+    <div class="brand-mark"><div class="logo-glyph">C</div><div class="name">Clarion</div></div>
+    <h1>Everything for school, in one place.</h1>
+    <p class="sub">Tasks, deadlines, your AI study helper, class discussions and rewards, behind one login.</p>
+    <div class="feature-list">
+      <div class="feature-item"><span class="feature-dot"></span>Every deadline across every class</div>
+      <div class="feature-item"><span class="feature-dot"></span>An AI helper that knows your own work</div>
+      <div class="feature-item"><span class="feature-dot"></span>Points your teacher verifies</div>
+    </div>
+  </div>
+  <div class="login-form-side">
+    <div class="login-form">
+      <h2>Welcome back</h2>
+      <div class="sub">Sign in to pick up where you left off.</div>
+
+      <div class="role-toggle">
+        <button id="roleBtnStudent" class="active" onclick="setLoginRole('student')">Student</button>
+        <button id="roleBtnTeacher" onclick="setLoginRole('teacher')">Teacher</button>
+      </div>
+
+      <div class="auth-tabs">
+        <button id="tabBtnSignin" class="active" onclick="setAuthTab('signin')">Sign in</button>
+        <button id="tabBtnJoin" onclick="setAuthTab('join')">Join a class</button>
+      </div>
+
+      <div id="signinView">
+        <div class="field"><label>School email</label><input type="text" value="prithu@dpsiedge.edu.in"></div>
+        <div class="field"><label>Password</label><input type="password" value="••••••••••"></div>
+        <div class="forgot-row">Forgot password?</div>
+        <button class="btn btn-primary login-submit" onclick="doLogin()">Sign in</button>
+      </div>
+
+      <div id="joinView" class="hidden">
+        <div class="or-divider"><span class="flex-line"></span>enter your class code<span class="flex-line"></span></div>
+        <div class="code-row">
+          <div class="code-box">7</div><div class="code-box">K</div><div class="code-box">2</div>
+          <div class="code-box empty">·</div><div class="code-box empty">·</div><div class="code-box empty">·</div>
+        </div>
+        <button class="btn btn-primary login-submit" onclick="doLogin()">Join class</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ APP SHELL ============ -->
+<div id="app-shell">
+  <div class="topbar">
+    <div class="brand-mark"><div class="logo-glyph sm">C</div></div>
+    <div class="topbar-search">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      <span>Search tasks, classes, discussions</span>
+    </div>
+    <div class="topbar-spacer"></div>
+    <div class="topbar-right">
+      <span class="role-badge" id="roleBadge">Student</span>
+      <span class="stat-chip streak" id="streakChip">4 day streak</span>
+      <span class="stat-chip points" id="pointsChip">240 pts</span>
+      <div class="avatar-circ" id="topAvatar">PS</div>
+    </div>
+  </div>
+
+  <div class="app-body">
+    <div class="sidebar">
+      <div class="nav-item active" data-page="dashboard" onclick="goPage('dashboard')"><span class="ic">&#9635;</span><span class="label">Dashboard</span></div>
+      <div class="nav-item" data-page="classes" onclick="goPage('classes')"><span class="ic">&#9776;</span><span class="label">My classes</span></div>
+      <div class="nav-item" data-page="ai" onclick="goPage('ai')"><span class="ic">&#10022;</span><span class="label">AI Helper</span></div>
+      <div class="nav-item" data-page="discussions" onclick="goPage('discussions')"><span class="ic">&#128172;</span><span class="label">Discussions</span></div>
+      <div class="nav-item" data-page="glory" onclick="goPage('glory')"><span class="ic">&#9733;</span><span class="label">Road to Glory</span></div>
+      <div class="sidebar-divider"></div>
+      <div class="nav-item" onclick="logout()"><span class="ic">&#8617;</span><span class="label">Switch demo user</span></div>
+      <div class="sidebar-user">
+        <div class="avatar-circ" id="sideAvatar">PS</div>
+        <div>
+          <div class="name" id="sideName">Prithu S.</div>
+          <div class="role" id="sideRole">Year 9</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="main-col">
+      <div class="content">
+
+        <!-- ---------------- DASHBOARD ---------------- -->
+        <div class="page-view active" id="view-dashboard">
+          <div class="page-header">
+            <div>
+              <h1 id="dashGreeting">Good morning, Prithu</h1>
+              <div class="sub" id="dashSub">Wednesday 17 September &middot; 5 tasks due this week</div>
+            </div>
+            <span class="flex-line"></span>
+            <button class="btn btn-primary" id="dashCta" onclick="alert('This is a demo prototype — hooking this up to a real backend is future work.')">Add task</button>
+          </div>
+
+          <div class="stat-row" id="statRow"></div>
+
+          <div class="two-col">
+            <div class="card panel">
+              <div class="panel-head"><h3 id="taskListTitle">Your tasks</h3><span class="flex-line"></span><span class="link">View all</span></div>
+              <div class="panel-body" id="dashTaskList"></div>
+            </div>
+            <div>
+              <div class="card panel" style="margin-bottom:20px;">
+                <div class="panel-head"><h3>This week</h3><span class="flex-line"></span><span class="count" id="calMonthLabel">September</span></div>
+                <div class="panel-body"><div class="mini-cal" id="miniCal"></div></div>
+              </div>
+              <div class="card panel" style="margin-bottom:20px;">
+                <div class="ai-suggest-card" style="margin:16px;">
+                  <div class="who"><span>&#10022;</span> Clarion suggests</div>
+                  <p id="aiSuggestText">Start the Biology worksheet first, it is overdue and Friday's test covers it.</p>
+                  <button class="btn btn-ghost btn-sm" onclick="goPage('ai')">Open AI Helper</button>
+                </div>
+              </div>
+              <div class="card panel">
+                <div class="panel-head"><h3>Recent discussion</h3><span class="flex-line"></span><span class="chip" style="background:#FFF3E6;color:var(--orange);">2 new</span></div>
+                <div class="discussion-preview" id="dashDiscussionPreview"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ---------------- MY CLASSES ---------------- -->
+        <div class="page-view" id="view-classes">
+          <div class="page-header">
+            <div><h1 id="classesTitle">My classes</h1><div class="sub" id="classesSub">Four classes this term, six tasks still open.</div></div>
+            <span class="flex-line"></span>
+            <button class="btn btn-ghost" onclick="alert('This is a demo prototype — joining a real class needs a backend.')">Join a class</button>
+          </div>
+          <div class="class-grid" id="classGrid"></div>
+        </div>
+
+        <!-- ---------------- AI HELPER ---------------- -->
+        <div class="page-view" id="view-ai">
+          <div class="page-header">
+            <div><h1>Study Helper</h1><div class="sub" id="aiSub">Sorted by what needs you first, not by class.</div></div>
+          </div>
+          <div class="ai-layout">
+            <div class="card panel priority-panel">
+              <div class="panel-head"><h3 id="priorityTitle">What needs you first</h3><span class="flex-line"></span><span class="chip" style="background:#F1F2FA;color:var(--ink-soft);" id="priorityCount">5 items</span></div>
+              <div id="priorityList"></div>
+              <div class="ask-bar">
+                <input type="text" id="aiInput" placeholder="Ask about your classes, tasks or notes">
+                <button class="btn btn-primary btn-sm" onclick="askAI()">Send</button>
+              </div>
+            </div>
+            <div>
+              <div class="card panel" style="padding:20px;margin-bottom:20px;">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+                  <div class="logo-glyph sm">C</div>
+                  <div style="font-weight:800;font-size:14px;">Clarion</div>
+                  <span class="flex-line"></span>
+                  <span class="chip" style="background:#EAF1FF;color:var(--blue);">Knows your classes</span>
+                </div>
+                <div id="assistantThread"></div>
+                <div class="quick-actions" id="quickActions"></div>
+              </div>
+              <div class="card panel" style="padding:20px;">
+                <h3 style="font-size:14px;margin:0 0 14px;">Every answer shows its sources</h3>
+                <div id="sourceList"></div>
+                <div class="safety-note" id="safetyNote">Teachers can review AI chats for safety.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ---------------- DISCUSSIONS ---------------- -->
+        <div class="page-view" id="view-discussions">
+          <div class="page-header">
+            <div><h1>Discussions</h1><div class="sub">Every thread from every class, newest first.</div></div>
+            <span class="flex-line"></span>
+            <button class="btn btn-primary btn-sm" onclick="openNewThread()">New thread</button>
+          </div>
+          <div class="disc-layout">
+            <div class="card disc-list-panel">
+              <div class="disc-search">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+                <input type="text" id="discSearch" placeholder="Search threads" oninput="renderThreadList()">
+              </div>
+              <div class="filter-row" id="filterRow"></div>
+              <div class="thread-list" id="threadList"></div>
+            </div>
+            <div class="card thread-detail" id="threadDetail"></div>
+          </div>
+        </div>
+
+        <!-- ---------------- ROAD TO GLORY (student) ---------------- -->
+        <div class="page-view" id="view-glory">
+          <div id="gloryStudent">
+            <div class="page-header">
+              <div><h1>Road to Glory</h1><div class="sub">Points only count once your teacher verifies the task.</div></div>
+              <span class="flex-line"></span>
+              <span class="chip" style="background:#EFEBFF;color:var(--purple);height:25px;">240 pts verified</span>
+            </div>
+
+            <div class="card panel" style="padding:19px 22px;margin-bottom:20px;">
+              <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;">
+                <h3 style="font-size:15px;margin:0;">This week</h3>
+                <span class="chip" style="background:#FFF3E6;color:var(--orange);">4 day streak</span>
+                <span class="flex-line"></span>
+                <span style="font-size:13px;font-weight:700;color:var(--green);">+40 pts earned</span>
+              </div>
+              <div class="streak-strip" id="streakStrip"></div>
+            </div>
+
+            <div class="two-col">
+              <div>
+                <div class="card panel" style="padding:19px 22px;margin-bottom:20px;">
+                  <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;">
+                    <h3 style="font-size:15px;margin:0;">Badges</h3><span class="flex-line"></span>
+                    <span class="count">2 of 4 unlocked</span>
+                  </div>
+                  <div class="badge-grid" id="badgeGrid"></div>
+                </div>
+                <div class="card panel" style="padding:19px 22px;">
+                  <div style="display:flex;align-items:center;gap:14px;margin-bottom:6px;">
+                    <h3 style="font-size:15px;margin:0;">Spend your points</h3><span class="flex-line"></span>
+                    <span class="chip" style="background:#F1F2FA;color:var(--ink-soft);">In app only</span>
+                  </div>
+                  <div id="rewardList"></div>
+                </div>
+              </div>
+              <div>
+                <div class="card panel" style="padding:19px 22px;margin-bottom:20px;">
+                  <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
+                    <h3 style="font-size:15px;margin:0;">Leaderboard</h3><span class="flex-line"></span>
+                    <span class="chip" style="background:#F1F2FA;color:var(--ink);">Class</span>
+                    <span class="chip" style="background:transparent;color:var(--muted);">School</span>
+                  </div>
+                  <div id="leaderList"></div>
+                </div>
+                <div class="verify-note"><span class="t">Why points are verified</span>A task only pays out once your teacher marks it complete, so the leaderboard cannot be gamed.</div>
+              </div>
+            </div>
+          </div>
+
+          <div id="gloryTeacher" class="hidden">
+            <div class="page-header">
+              <div><h1>Road to Glory &mdash; teacher console</h1><div class="sub">Nothing pays out until you verify it here.</div></div>
+            </div>
+            <div class="stat-row" id="teacherGloryStats"></div>
+            <div class="two-col">
+              <div class="card panel" style="padding:19px 22px;">
+                <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;">
+                  <h3 style="font-size:15px;margin:0;">Awaiting verification</h3><span class="flex-line"></span>
+                </div>
+                <div id="verifyQueue"></div>
+              </div>
+              <div>
+                <div class="card panel" style="padding:19px 22px;margin-bottom:20px;">
+                  <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;">
+                    <h3 style="font-size:15px;margin:0;">Class leaderboard</h3><span class="flex-line"></span>
+                  </div>
+                  <div id="teacherLeaderList"></div>
+                </div>
+                <div class="verify-note"><span class="t">Why points are verified</span>A task only pays out once you mark it complete, so the leaderboard cannot be gamed by students.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   CLARION — data
+   ========================================================= */
+const URGENCY = {
+  urgent: {label:'Overdue', color:'#EF8B09'},
+  today:  {label:'Today',   color:'#3B82F6'},
+  week:   {label:'This week', color:'#6D5DFB'},
+  done:   {label:'Done',    color:'#A3A7BA'}
+};
+const DUE_LABEL = {urgent:'Overdue', today:'Today', week:'Friday', done:'Done'};
+
+const classes = [
+  {id:'bio', name:'Biology 9',  teacher:'Ms Kaushal',  color:'#6D5DFB', tasksDue:3, newPosts:2, flashcards:12},
+  {id:'math',name:'Maths 9',    teacher:'Mr Iyer',     color:'#3B82F6', tasksDue:2, newPosts:0, flashcards:24},
+  {id:'eng', name:'English 9',  teacher:'Ms Rao',      color:'#12B76A', tasksDue:1, newPosts:3, flashcards:0},
+  {id:'hist',name:'History 9',  teacher:'Mr Banerjee', color:'#0EA5E9', tasksDue:0, newPosts:1, flashcards:8},
+];
+function classById(id){ return classes.find(c=>c.id===id); }
+
+let tasks = [
+  {id:'t1', title:'Finish cell structure worksheet', classId:'bio',  urgency:'urgent', done:false},
+  {id:'t2', title:'Revise cell structure for Friday test', classId:'bio', urgency:'urgent', done:false},
+  {id:'t3', title:'Read pages 3 to 6 and self check', classId:'bio', urgency:'today', done:false},
+  {id:'t4', title:'Quadratics problem set', classId:'math', urgency:'today', done:false},
+  {id:'t5', title:'Essay first draft', classId:'eng', urgency:'week', done:false},
+  {id:'t6', title:'Photosynthesis revision notes', classId:'bio', urgency:'week', done:false},
+  {id:'t7', title:'Unit 2 source list', classId:'hist', urgency:'done', done:true},
+];
+
+let threads = [
+  {id:'d1', classId:'bio', title:'Q and A, Biology 9', pinned:true, unread:true, time:'10m', classmates:28,
+    preview:"Ms Kaushal: Friday test covers cell structure only.",
+    messages:[
+      {author:'Ms Kaushal', teacher:true, time:'10 min ago', text:"Reminder: the Friday test covers cell structure and photosynthesis only. You do not need the light dependent reactions in detail."},
+      {author:'Ananya R.', teacher:false, time:'8 min ago', text:"Do we need to memorise the full equation, or is the word equation enough?"},
+      {author:'Ms Kaushal', teacher:true, time:'5 min ago', text:"The word equation is enough for this test. The balanced version comes in unit 4."},
+    ]},
+  {id:'d2', classId:'math', title:'Quadratics help', pinned:false, unread:false, time:'40m', classmates:24,
+    preview:"Aarav: Can someone explain completing the square?",
+    messages:[
+      {author:'Aarav P.', teacher:false, time:'40 min ago', text:"Can someone explain completing the square? I keep messing up the sign."},
+      {author:'Mr Iyer', teacher:true, time:'25 min ago', text:"Move the constant to the other side first, then halve the b coefficient and square it, and add that to both sides."},
+    ]},
+  {id:'d3', classId:'eng', title:'Essay drafts', pinned:false, unread:false, time:'2h', classmates:19,
+    preview:"Ms Rao posted feedback on the first drafts.",
+    messages:[
+      {author:'Ms Rao', teacher:true, time:'2 hours ago', text:"Feedback on the first drafts is up, check your thesis statements against the rubric before Friday."},
+    ]},
+  {id:'d4', classId:'hist', title:'Unit 2 sources', pinned:true, unread:false, time:'1d', classmates:22,
+    preview:"Pinned: primary source list for the essay.",
+    messages:[
+      {author:'Mr Banerjee', teacher:true, time:'1 day ago', text:"Pinned: primary source list for the essay, six sources minimum, at least two primary."},
+    ]},
+];
+
+const badges = [
+  {name:'Early bird', unlocked:true, status:'Unlocked'},
+  {name:'Perfect week', unlocked:true, status:'Unlocked'},
+  {name:'Bookworm', unlocked:false, status:'3 of 5 books'},
+  {name:'Streak of 10', unlocked:false, status:'6 days to go'},
+];
+
+const rewards = [
+  {name:'Choose the next class game', cost:80, progress:null},
+  {name:'Homework pass, one task', cost:150, progress:null},
+  {name:'Custom theme unlock', cost:300, progress:240},
+];
+
+const leaderboard = [
+  {name:'Ananya R.', pts:310, me:false},
+  {name:'Rohan M.', pts:265, me:false},
+  {name:'Prithu S.', pts:240, me:true},
+  {name:'Zara K.', pts:205, me:false},
+];
+
+const streakWeek = [
+  {dow:'Mon', state:'verified', pts:'+10'},
+  {dow:'Tue', state:'verified', pts:'+15'},
+  {dow:'Wed', state:'verified', pts:'+5'},
+  {dow:'Thu', state:'verified', pts:'+10'},
+  {dow:'Fri', state:'today', pts:'today'},
+  {dow:'Sat', state:'rest', pts:'rest'},
+  {dow:'Sun', state:'rest', pts:'rest'},
+];
+
+const weekCal = [
+  {dow:'M', num:15, dot:false},{dow:'T', num:16, dot:false},{dow:'W', num:17, dot:false,today:true},
+  {dow:'T', num:18, dot:false},{dow:'F', num:19, dot:true},{dow:'S', num:20, dot:false},{dow:'S', num:21, dot:false},
+];
+
+const verifyQueue = [
+  {student:'Ananya R.', task:'Cell structure worksheet', classId:'bio'},
+  {student:'Rohan M.', task:'Cell structure worksheet', classId:'bio'},
+  {student:'Zara K.', task:'Quadratics problem set', classId:'math'},
+  {student:'Aarav P.', task:'Essay first draft', classId:'eng'},
+];
+
+const AI_RESPONSES_STUDENT = [
+  "For Friday's test, focus on the TFTP rule and the overall photosynthesis equation.",
+  "Based on your deadlines, the cell structure worksheet is overdue and the test covers it, so start there.",
+  "You're on a 4 day streak. One more verified day keeps it going.",
+  "The quadratics problem set should take about 20 minutes based on your usual pace."
+];
+const AI_RESPONSES_TEACHER = [
+  "6 Biology submissions are still unverified from yesterday, and Friday's test depends on that unit.",
+  "Ananya R. and Rohan M. both submitted the cell structure worksheet, ready for you to verify.",
+  "Class average completion is 82% this week, up from 76% last week.",
+  "Want me to draft a reminder post for Friday's test in Biology 9?"
+];
+
+/* =========================================================
+   STATE
+   ========================================================= */
+let role = 'student';
+let discFilter = 'all';
+let selectedThreadId = threads[0].id;
+let aiCallCount = 0;
+
+/* =========================================================
+   LOGIN
+   ========================================================= */
+function setLoginRole(r){
+  role = r;
+  document.getElementById('roleBtnStudent').classList.toggle('active', r==='student');
+  document.getElementById('roleBtnTeacher').classList.toggle('active', r==='teacher');
+}
+function setAuthTab(tab){
+  document.getElementById('tabBtnSignin').classList.toggle('active', tab==='signin');
+  document.getElementById('tabBtnJoin').classList.toggle('active', tab==='join');
+  document.getElementById('signinView').classList.toggle('hidden', tab!=='signin');
+  document.getElementById('joinView').classList.toggle('hidden', tab!=='join');
+}
+function doLogin(){
+  document.getElementById('page-login').style.display='none';
+  document.getElementById('app-shell').classList.add('active');
+  applyRoleChrome();
+  goPage('dashboard');
+}
+function logout(){
+  document.getElementById('app-shell').classList.remove('active');
+  document.getElementById('page-login').style.display='flex';
+}
+function applyRoleChrome(){
+  const badge = document.getElementById('roleBadge');
+  badge.textContent = role==='student' ? 'Student' : 'Teacher';
+  badge.className = 'role-badge ' + role;
+  const name = role==='student' ? 'Prithu S.' : 'Ms Kaushal';
+  const sub = role==='student' ? 'Year 9' : 'Biology 9 teacher';
+  const initials = role==='student' ? 'PS' : 'MK';
+  document.getElementById('topAvatar').textContent = initials;
+  document.getElementById('sideAvatar').textContent = initials;
+  document.getElementById('sideName').textContent = name;
+  document.getElementById('sideRole').textContent = sub;
+  document.querySelector('.stat-chip.streak').style.display = role==='student' ? 'flex' : 'none';
+  document.querySelector('.stat-chip.points').style.display = role==='student' ? 'flex' : 'none';
+}
+
+/* =========================================================
+   NAV
+   ========================================================= */
+function goPage(page){
+  document.querySelectorAll('.nav-item[data-page]').forEach(el=>el.classList.toggle('active', el.dataset.page===page));
+  document.querySelectorAll('.page-view').forEach(el=>el.classList.remove('active'));
+  document.getElementById('view-'+page).classList.add('active');
+  if(page==='dashboard') renderDashboard();
+  if(page==='classes') renderClasses();
+  if(page==='ai') renderAI();
+  if(page==='discussions') renderDiscussions();
+  if(page==='glory') renderGlory();
+}
+
+/* =========================================================
+   DASHBOARD
+   ========================================================= */
+function renderDashboard(){
+  const greet = document.getElementById('dashGreeting');
+  const sub = document.getElementById('dashSub');
+  const cta = document.getElementById('dashCta');
+  const titleEl = document.getElementById('taskListTitle');
+
+  if(role==='student'){
+    greet.textContent = 'Good morning, Prithu';
+    sub.textContent = 'Wednesday 17 September · 5 tasks due this week';
+    cta.textContent = 'Add task';
+    titleEl.textContent = 'Your tasks';
+    document.getElementById('aiSuggestText').textContent = "Start the Biology worksheet first, it is overdue and Friday's test covers it.";
+  } else {
+    greet.textContent = 'Good afternoon, Ms Kaushal';
+    sub.textContent = 'Wednesday 17 September · 6 submissions to verify';
+    cta.textContent = 'New announcement';
+    titleEl.textContent = 'Needs grading';
+    document.getElementById('aiSuggestText').textContent = "Grade the Biology submissions first, 6 are overdue and block Friday's test prep.";
+  }
+
+  const statRow = document.getElementById('statRow');
+  if(role==='student'){
+    statRow.innerHTML = statCard('#6D5DFB','5','Due this week') + statCard('#EF8B09','1','Overdue') + statCard('#12B76A','23','Completed') + statCard('#3B82F6','240','Points earned');
+  } else {
+    statRow.innerHTML = statCard('#6D5DFB','4','Classes') + statCard('#EF8B09','6','To verify') + statCard('#12B76A','82%','Avg completion') + statCard('#3B82F6','96','Students');
+  }
+
+  const list = document.getElementById('dashTaskList');
+  if(role==='student'){
+    const shown = tasks.filter(t=>t.id!=='t2' && t.id!=='t3');
+    list.innerHTML = shown.map(taskRowHTML).join('');
+  } else {
+    list.innerHTML = verifyQueue.slice(0,5).map(v=>{
+      const cls = classById(v.classId);
+      return `<div class="task-row">
+        <div class="task-check" style="border-color:${cls.color};"></div>
+        <div style="flex:1;min-width:0;"><div class="task-title">${v.student} &mdash; ${v.task}</div></div>
+        <span class="flex-line"></span>
+        <span class="chip" style="background:${cls.color}1A;color:${cls.color};">${cls.name}</span>
+      </div>`;
+    }).join('');
+  }
+
+  renderMiniCal();
+
+  const discPrev = document.getElementById('dashDiscussionPreview');
+  const t = threads[0];
+  discPrev.innerHTML = `
+    <div class="head">
+      <div class="avatar-circ">MK</div>
+      <div><div style="font-weight:700;font-size:13px;">Ms Kaushal <span class="chip" style="background:#F1EEFF;color:var(--purple);height:18px;padding:0 8px;font-size:10.5px;">Teacher</span></div></div>
+    </div>
+    <div style="font-size:13px;color:var(--ink-soft);line-height:1.5;">Reminder: Friday's test covers cell structure and photosynthesis only.</div>`;
+}
+
+function statCard(color, value, label){
+  return `<div class="card stat-card"><div class="stat-accent" style="background:${color};"></div><div class="value">${value}</div><div class="label">${label}</div></div>`;
+}
+
+function taskRowHTML(t){
+  const cls = classById(t.classId);
+  const u = URGENCY[t.urgency];
+  return `<div class="task-row">
+    <div class="task-check ${t.done?'done':''}" onclick="toggleTask('${t.id}')">${t.done?'&#10003;':''}</div>
+    <div class="task-title ${t.done?'done':''}" style="flex:1;min-width:0;">${t.title}</div>
+    <span class="chip" style="background:${cls.color}1A;color:${cls.color};">${cls.name}</span>
+    <span class="flex-line"></span>
+    <span class="chip" style="background:${u.color}1A;color:${u.color};">${DUE_LABEL[t.urgency]}</span>
+  </div>`;
+}
+
+function toggleTask(id){
+  const t = tasks.find(x=>x.id===id);
+  t.done = !t.done;
+  t.urgency = t.done ? 'done' : 'week';
+  renderDashboard();
+  if(document.getElementById('view-ai').classList.contains('active')) renderAI();
+}
+
+function renderMiniCal(){
+  const el = document.getElementById('miniCal');
+  el.innerHTML = weekCal.map(d=>`
+    <div class="day">
+      <div class="dow">${d.dow}</div>
+      <div class="num ${d.today?'today':''}">${d.num}</div>
+      <div class="dot ${d.dot?'':'none'}"></div>
+    </div>`).join('');
+}
+
+/* =========================================================
+   MY CLASSES
+   ========================================================= */
+function renderClasses(){
+  const titleEl = document.getElementById('classesTitle');
+  const subEl = document.getElementById('classesSub');
+  if(role==='student'){
+    titleEl.textContent = 'My classes';
+    subEl.textContent = 'Four classes this term, six tasks still open.';
+  } else {
+    titleEl.textContent = 'My classes';
+    subEl.textContent = 'You teach 1 of these 4 classes shown here as a demo roster.';
+  }
+  const nextTask = cid => tasks.find(t=>t.classId===cid && !t.done) || tasks.find(t=>t.classId===cid);
+  const grid = document.getElementById('classGrid');
+  grid.innerHTML = classes.map(c=>{
+    const nt = nextTask(c.id);
+    const u = nt ? URGENCY[nt.urgency] : URGENCY.done;
+    const openLabel = role==='student' ? 'Open class' : 'Manage class';
+    return `<div class="card class-card">
+      <div class="class-card-head">
+        <div class="class-swatch" style="background:${c.color};"></div>
+        <div><div class="name">${c.name}</div><div class="teacher">${c.teacher}</div></div>
+      </div>
+      <div class="class-counts">
+        <div><div class="count">${c.tasksDue}</div><div class="clabel">tasks due</div></div>
+        <div><div class="count">${c.newPosts}</div><div class="clabel">new posts</div></div>
+        <div><div class="count">${c.flashcards}</div><div class="clabel">flashcards</div></div>
+      </div>
+      <div class="class-next">
+        <span style="flex:1;">${nt ? 'Next: '+nt.title : 'Nothing due'}</span>
+        <span class="chip" style="background:${u.color}1A;color:${u.color};">${DUE_LABEL[nt?nt.urgency:'done']}</span>
+      </div>
+      <button class="btn btn-ghost class-open-btn" onclick="goPage('discussions')">${openLabel}</button>
+    </div>`;
+  }).join('');
+}
+
+/* =========================================================
+   AI HELPER
+   ========================================================= */
+function renderAI(){
+  document.getElementById('aiSub').textContent = role==='student'
+    ? 'Sorted by what needs you first, not by class.'
+    : 'Sorted by what needs your attention first.';
+  document.getElementById('priorityTitle').textContent = role==='student' ? 'What needs you first' : 'What needs your attention first';
+
+  const order = {urgent:0, today:1, week:2, done:3};
+  const sorted = [...tasks].sort((a,b)=>order[a.urgency]-order[b.urgency]);
+  document.getElementById('priorityCount').textContent = sorted.length + ' items';
+  document.getElementById('priorityList').innerHTML = sorted.map(t=>{
+    const cls = classById(t.classId);
+    const u = URGENCY[t.urgency];
+    return `<div class="priority-row">
+      <div class="priority-accent" style="background:${u.color};"></div>
+      <div style="flex:1;min-width:0;">
+        <div class="priority-title">${t.title}</div>
+        <span class="chip" style="background:${cls.color}1A;color:${cls.color};">${cls.name}</span>
+      </div>
+      <span class="chip" style="background:${u.color}1A;color:${u.color};">${u.label}</span>
+    </div>`;
+  }).join('');
+
+  const thread = document.getElementById('assistantThread');
+  if(role==='student'){
+    thread.innerHTML = `
+      <div class="assistant-msg from-ai"><div class="bubble ai">For Friday's test, focus on the TFTP rule and the overall photosynthesis equation.</div></div>
+      <div class="assistant-msg from-user"><div class="bubble user">Make me a plan for tonight, I have about 2 hours.</div></div>`;
+    document.getElementById('quickActions').innerHTML = `<button class="btn btn-ghost btn-sm">Make a study plan</button><button class="btn btn-ghost btn-sm">Quiz me</button>`;
+    document.getElementById('sourceList').innerHTML = sourceRow('Bio unit 3 notes.pdf') + sourceRow('Task: Cell structure worksheet');
+    document.getElementById('safetyNote').textContent = 'Teachers can review AI chats for safety.';
+  } else {
+    thread.innerHTML = `
+      <div class="assistant-msg from-ai"><div class="bubble ai">6 Biology submissions are still unverified, and Friday's test depends on that unit.</div></div>
+      <div class="assistant-msg from-user"><div class="bubble user">Draft a reminder post for Friday's test.</div></div>`;
+    document.getElementById('quickActions').innerHTML = `<button class="btn btn-ghost btn-sm">Draft announcement</button><button class="btn btn-ghost btn-sm">Summarize thread</button>`;
+    document.getElementById('sourceList').innerHTML = sourceRow('Biology 9 gradebook') + sourceRow('Unit 3 test outline.pdf');
+    document.getElementById('safetyNote').textContent = 'Students can see when you review a shared thread.';
+  }
+}
+function sourceRow(name){
+  return `<div class="source-row"><span class="source-dot"></span>${name}</div>`;
+}
+function askAI(){
+  const input = document.getElementById('aiInput');
+  const q = input.value.trim();
+  if(!q) return;
+  const pool = role==='student' ? AI_RESPONSES_STUDENT : AI_RESPONSES_TEACHER;
+  const reply = pool[aiCallCount % pool.length];
+  aiCallCount++;
+  const thread = document.getElementById('assistantThread');
+  thread.insertAdjacentHTML('beforeend', `<div class="assistant-msg from-user"><div class="bubble user">${escapeHtml(q)}</div></div><div class="assistant-msg from-ai"><div class="bubble ai">${reply}</div></div>`);
+  input.value = '';
+}
+function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+/* =========================================================
+   DISCUSSIONS
+   ========================================================= */
+function renderDiscussions(){
+  renderFilterRow();
+  renderThreadList();
+  renderThreadDetail();
+}
+function renderFilterRow(){
+  const filters = [
+    {id:'all', label:'All'}, {id:'unread', label:'Unread'}, {id:'pinned', label:'Pinned'}, {id:'teacher', label:'Teacher'}
+  ];
+  document.getElementById('filterRow').innerHTML = filters.map(f=>
+    `<button class="filter-chip ${discFilter===f.id?'active':''}" onclick="setDiscFilter('${f.id}')">${f.label}</button>`).join('');
+}
+function setDiscFilter(id){ discFilter = id; renderThreadList(); }
+
+function renderThreadList(){
+  const search = document.getElementById('discSearch').value.toLowerCase();
+  let list = threads.filter(t=>{
+    if(discFilter==='unread' && !t.unread) return false;
+    if(discFilter==='pinned' && !t.pinned) return false;
+    if(discFilter==='teacher' && !t.messages.some(m=>m.teacher)) return false;
+    if(search && !(t.title.toLowerCase().includes(search) || t.preview.toLowerCase().includes(search))) return false;
+    return true;
+  });
+  const el = document.getElementById('threadList');
+  if(list.length===0){ el.innerHTML = `<div style="padding:24px;text-align:center;color:var(--ink-soft);font-size:13px;">No threads match.</div>`; return; }
+  el.innerHTML = list.map(t=>{
+    const cls = classById(t.classId);
+    return `<div class="thread-item ${t.id===selectedThreadId?'selected':''}" onclick="selectThread('${t.id}')">
+      <div class="top-row">
+        <span class="chip" style="background:${cls.color}1A;color:${cls.color};">${cls.name}</span>
+        ${t.unread?'<span class="unread-dot"></span>':''}
+        <span class="time">${t.time}</span>
+      </div>
+      <div class="title">${t.title}${t.pinned?' &#128204;':''}</div>
+      <div class="preview">${t.preview}</div>
+    </div>`;
+  }).join('');
+}
+function selectThread(id){ selectedThreadId = id; renderThreadList(); renderThreadDetail(); }
+
+function renderThreadDetail(){
+  const t = threads.find(x=>x.id===selectedThreadId) || threads[0];
+  const cls = classById(t.classId);
+  const el = document.getElementById('threadDetail');
+  el.innerHTML = `
+    <div class="thread-detail-head">
+      <h3>${t.title}</h3>
+      ${t.pinned ? '<span class="chip" style="background:#FFF3E6;color:var(--orange);">Pinned</span>' : ''}
+      <span class="meta">${t.classmates} classmates</span>
+    </div>
+    <div class="thread-messages">${t.messages.map(m=>msgRowHTML(m, cls)).join('')}</div>
+    <div class="composer">
+      <div class="avatar-circ" style="width:32px;height:32px;font-size:11px;">${role==='student'?'PS':'MK'}</div>
+      <input type="text" placeholder="Reply in ${cls.name}" onkeydown="if(event.key==='Enter') postReply('${t.id}', this)">
+      <button class="btn btn-primary btn-sm" onclick="postReply('${t.id}', this.previousElementSibling)">Post</button>
+    </div>`;
+}
+function msgRowHTML(m, cls){
+  const initials = m.author.split(' ').map(w=>w[0]).join('').slice(0,2);
+  return `<div class="msg-row">
+    <div class="avatar-circ" style="background:${m.teacher?'linear-gradient(135deg,var(--purple),var(--blue))':'#EEF0F7'};color:${m.teacher?'#fff':'var(--ink-soft)'};">${initials}</div>
+    <div class="msg-body">
+      <div class="msg-top"><span class="author">${m.author}</span>${m.teacher?'<span class="chip" style="background:#F1EEFF;color:var(--purple);height:18px;padding:0 8px;font-size:10.5px;">Teacher</span>':''}<span class="time">${m.time}</span></div>
+      <div class="msg-text">${m.text}</div>
+    </div>
+  </div>`;
+}
+function postReply(threadId, inputEl){
+  const text = inputEl.value.trim();
+  if(!text) return;
+  const t = threads.find(x=>x.id===threadId);
+  t.messages.push({author: role==='student'?'Prithu S.':'Ms Kaushal', teacher: role==='teacher', time:'Just now', text});
+  inputEl.value = '';
+  renderThreadDetail();
+}
+function openNewThread(){
+  const title = prompt('New thread title:');
+  if(!title) return;
+  const t = {id:'d'+Date.now(), classId: classes[0].id, title, pinned:false, unread:false, time:'Just now', classmates: 20,
+    preview:'(new thread, add your first post)', messages:[]};
+  threads.unshift(t);
+  selectedThreadId = t.id;
+  renderDiscussions();
+}
+
+/* =========================================================
+   ROAD TO GLORY
+   ========================================================= */
+function renderGlory(){
+  document.getElementById('gloryStudent').classList.toggle('hidden', role!=='student');
+  document.getElementById('gloryTeacher').classList.toggle('hidden', role!=='teacher');
+
+  if(role==='student'){
+    document.getElementById('streakStrip').innerHTML = streakWeek.map(d=>{
+      const cls = d.state==='verified' ? 'verified' : d.state==='today' ? 'today' : '';
+      const mark = d.state==='verified' ? '&#10003;' : d.state==='today' ? '' : '';
+      return `<div class="streak-day">
+        <div class="dow">${d.dow}</div>
+        <div class="mark ${cls}">${mark}</div>
+        <div class="pts">${d.pts}</div>
+      </div>`;
+    }).join('');
+
+    document.getElementById('badgeGrid').innerHTML = badges.map(b=>`
+      <div class="badge-tile ${b.unlocked?'':'locked'}">
+        <div class="badge-icon">${b.unlocked?'&#9733;':'&#128274;'}</div>
+        <div class="badge-name">${b.name}</div>
+        <div class="badge-status ${b.unlocked?'unlocked':''}">${b.status}</div>
+      </div>`).join('');
+
+    document.getElementById('rewardList').innerHTML = rewards.map(r=>{
+      const canAfford = leaderboard.find(l=>l.me).pts >= r.cost;
+      if(r.progress!=null){
+        const pct = Math.min(100, Math.round(r.progress / r.cost * 100));
+        const remaining = r.cost - r.progress;
+        return `<div class="reward-row">
+          <div class="reward-icon">&#127942;</div>
+          <div style="flex:1;">
+            <div class="reward-name">${r.name}</div>
+            <div class="reward-progress-track"><div class="reward-progress-fill" style="width:${pct}%;"></div></div>
+            <div class="reward-cost">${r.progress} of ${r.cost} pts</div>
+          </div>
+          <button class="btn btn-ghost btn-sm" disabled>${remaining} pts to go</button>
+        </div>`;
+      }
+      return `<div class="reward-row">
+        <div class="reward-icon">&#127942;</div>
+        <div style="flex:1;"><div class="reward-name">${r.name}</div><div class="reward-cost">${r.cost} pts</div></div>
+        <button class="btn ${canAfford?'btn-primary':'btn-ghost'} btn-sm" ${canAfford?'':'disabled'} onclick="redeem('${r.name}', ${r.cost})">Redeem</button>
+      </div>`;
+    }).join('');
+
+    document.getElementById('leaderList').innerHTML = renderLeaderRows(leaderboard);
+  } else {
+    document.getElementById('teacherGloryStats').innerHTML =
+      statCard('#6D5DFB', verifyQueue.length, 'Awaiting verification') +
+      statCard('#12B76A', '1,020', 'Points verified this week') +
+      statCard('#3B82F6', '2', 'Badges to award') +
+      statCard('#EF8B09', '0', 'Disputed points');
+
+    document.getElementById('verifyQueue').innerHTML = verifyQueue.map((v,i)=>{
+      const cls = classById(v.classId);
+      return `<div class="task-row">
+        <div style="flex:1;min-width:0;">
+          <div class="task-title">${v.student} &mdash; ${v.task}</div>
+        </div>
+        <span class="chip" style="background:${cls.color}1A;color:${cls.color};">${cls.name}</span>
+        <span class="flex-line"></span>
+        <button class="btn btn-primary btn-sm" onclick="verifyTask(${i})">Verify</button>
+      </div>`;
+    }).join('') || `<div style="padding:20px 0;color:var(--ink-soft);font-size:13px;">Nothing waiting on verification.</div>`;
+
+    document.getElementById('teacherLeaderList').innerHTML = renderLeaderRows(leaderboard, false);
+  }
+}
+function renderLeaderRows(list, highlightMe=true){
+  const rankClass = i => i===0?'gold':i===1?'silver':i===2?'bronze':'';
+  return list.map((s,i)=>`
+    <div class="leader-row ${highlightMe && s.me ? 'me':''}">
+      <div class="leader-rank ${rankClass(i)}">${i+1}</div>
+      <div class="leader-name">${s.name}${s.me?' (you)':''}</div>
+      <div class="leader-pts">${s.pts} pts</div>
+    </div>`).join('');
+}
+function redeem(name, cost){
+  const me = leaderboard.find(l=>l.me);
+  if(me.pts < cost) return;
+  me.pts -= cost;
+  alert('Redeemed: ' + name + '!');
+  renderGlory();
+}
+function verifyTask(i){
+  const v = verifyQueue[i];
+  verifyQueue.splice(i,1);
+  alert(v.student + "'s " + v.task + ' has been verified and points released.');
+  renderGlory();
+}
+</script>
+</body>
+</html>
