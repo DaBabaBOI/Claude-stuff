@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Clarion</title>
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <style>
   :root{
     --purple:#6D5DFB;
@@ -97,6 +98,9 @@
   .join-view{display:none;}
   .join-view.active{display:block;}
   .signin-view.hidden-view{display:none;}
+  .config-banner{background:#FFF3E6;border:1px solid #FDDCAE;color:#92400E;font-size:12.5px;padding:10px 14px;border-radius:10px;margin-bottom:16px;line-height:1.5;}
+  .config-banner code{background:#00000010;padding:1px 5px;border-radius:4px;}
+  .auth-error{background:#FEECEC;border:1px solid #F5C2C2;color:#B42318;font-size:12.5px;padding:10px 14px;border-radius:10px;margin-bottom:16px;line-height:1.5;}
 
   /* ================= APP SHELL ================= */
   #app-shell{display:none;min-height:100vh;flex-direction:column;}
@@ -321,30 +325,32 @@
       <h2>Welcome back</h2>
       <div class="sub">Sign in to pick up where you left off.</div>
 
-      <div class="role-toggle">
-        <button id="roleBtnStudent" class="active" onclick="setLoginRole('student')">Student</button>
-        <button id="roleBtnTeacher" onclick="setLoginRole('teacher')">Teacher</button>
+      <div id="configBanner" class="config-banner hidden">
+        Supabase isn't connected yet. Open <code>clarion.html</code> and fill in <code>SUPABASE_URL</code> and <code>SUPABASE_ANON_KEY</code> near the top of the <code>&lt;script&gt;</code> tag, then reload this page.
       </div>
+      <div id="authError" class="auth-error hidden"></div>
 
       <div class="auth-tabs">
         <button id="tabBtnSignin" class="active" onclick="setAuthTab('signin')">Sign in</button>
-        <button id="tabBtnJoin" onclick="setAuthTab('join')">Join a class</button>
+        <button id="tabBtnSignup" onclick="setAuthTab('signup')">Create account</button>
       </div>
 
       <div id="signinView">
-        <div class="field"><label>School email</label><input type="text" value="prithu@dpsiedge.edu.in"></div>
-        <div class="field"><label>Password</label><input type="password" value="••••••••••"></div>
-        <div class="forgot-row">Forgot password?</div>
-        <button class="btn btn-primary login-submit" onclick="doLogin()">Sign in</button>
+        <div class="field"><label>Email</label><input type="email" id="signinEmail" placeholder="you@school.edu"></div>
+        <div class="field"><label>Password</label><input type="password" id="signinPassword" placeholder="Your password"></div>
+        <button class="btn btn-primary login-submit" onclick="handleSignIn()">Sign in</button>
       </div>
 
-      <div id="joinView" class="hidden">
-        <div class="or-divider"><span class="flex-line"></span>enter your class code<span class="flex-line"></span></div>
-        <div class="code-row">
-          <div class="code-box">7</div><div class="code-box">K</div><div class="code-box">2</div>
-          <div class="code-box empty">·</div><div class="code-box empty">·</div><div class="code-box empty">·</div>
+      <div id="signupView" class="hidden">
+        <div class="role-toggle">
+          <button id="roleBtnStudent" class="active" onclick="setSignupRole('student')">Student</button>
+          <button id="roleBtnTeacher" onclick="setSignupRole('teacher')">Teacher</button>
         </div>
-        <button class="btn btn-primary login-submit" onclick="doLogin()">Join class</button>
+        <div class="field"><label>Full name</label><input type="text" id="signupName" placeholder="Jordan Lee"></div>
+        <div class="field"><label>Email</label><input type="email" id="signupEmail" placeholder="you@school.edu"></div>
+        <div class="field"><label>Password</label><input type="password" id="signupPassword" placeholder="At least 6 characters"></div>
+        <div class="field" id="signupCodeField"><label>Class code (optional, students only)</label><input type="text" id="signupCode" placeholder="e.g. 7K2ABC"></div>
+        <button class="btn btn-primary login-submit" onclick="handleSignUp()">Create account</button>
       </div>
     </div>
   </div>
@@ -375,7 +381,7 @@
       <div class="nav-item" data-page="discussions" onclick="goPage('discussions')"><span class="ic">&#128172;</span><span class="label">Discussions</span></div>
       <div class="nav-item" data-page="glory" onclick="goPage('glory')"><span class="ic">&#9733;</span><span class="label">Road to Glory</span></div>
       <div class="sidebar-divider"></div>
-      <div class="nav-item" onclick="logout()"><span class="ic">&#8617;</span><span class="label">Switch demo user</span></div>
+      <div class="nav-item" onclick="logout()"><span class="ic">&#8617;</span><span class="label">Sign out</span></div>
       <div class="sidebar-user">
         <div class="avatar-circ" id="sideAvatar">PS</div>
         <div>
@@ -396,7 +402,7 @@
               <div class="sub" id="dashSub">Wednesday 17 September &middot; 5 tasks due this week</div>
             </div>
             <span class="flex-line"></span>
-            <button class="btn btn-primary" id="dashCta" onclick="alert('This is a demo prototype — hooking this up to a real backend is future work.')">Add task</button>
+            <button class="btn btn-primary" id="dashCta" onclick="alert('Tasks, the AI helper and Road to Glory are still demo data in this prototype. Discussions and My classes are now live in Supabase.')">Add task</button>
           </div>
 
           <div class="stat-row" id="statRow"></div>
@@ -431,7 +437,7 @@
           <div class="page-header">
             <div><h1 id="classesTitle">My classes</h1><div class="sub" id="classesSub">Four classes this term, six tasks still open.</div></div>
             <span class="flex-line"></span>
-            <button class="btn btn-ghost" onclick="alert('This is a demo prototype — joining a real class needs a backend.')">Join a class</button>
+            <button class="btn btn-ghost" id="classesActionBtn" onclick="handleClassesAction()">Join a class</button>
           </div>
           <div class="class-grid" id="classGrid"></div>
         </div>
@@ -572,7 +578,21 @@
 
 <script>
 /* =========================================================
-   CLARION — data
+   CLARION — Supabase config
+   Paste your project's values here (Project Settings -> API in Supabase),
+   then reload the page. Everything else in this file works once these
+   two lines are filled in and supabase_schema.sql has been run.
+   ========================================================= */
+const SUPABASE_URL = 'https://YOUR-PROJECT.supabase.co';
+const SUPABASE_ANON_KEY = 'YOUR-ANON-KEY';
+
+const supabaseConfigured = !SUPABASE_URL.includes('YOUR-PROJECT') && !SUPABASE_ANON_KEY.includes('YOUR-ANON-KEY');
+const sb = supabaseConfigured ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+
+/* =========================================================
+   CLARION — demo data
+   (Tasks, the AI helper replies, and Road to Glory still run on this
+   static data. Classes and Discussions below are backed by Supabase.)
    ========================================================= */
 const URGENCY = {
   urgent: {label:'Overdue', color:'#EF8B09'},
@@ -598,32 +618,6 @@ let tasks = [
   {id:'t5', title:'Essay first draft', classId:'eng', urgency:'week', done:false},
   {id:'t6', title:'Photosynthesis revision notes', classId:'bio', urgency:'week', done:false},
   {id:'t7', title:'Unit 2 source list', classId:'hist', urgency:'done', done:true},
-];
-
-let threads = [
-  {id:'d1', classId:'bio', title:'Q and A, Biology 9', pinned:true, unread:true, time:'10m', classmates:28,
-    preview:"Ms Kaushal: Friday test covers cell structure only.",
-    messages:[
-      {author:'Ms Kaushal', teacher:true, time:'10 min ago', text:"Reminder: the Friday test covers cell structure and photosynthesis only. You do not need the light dependent reactions in detail."},
-      {author:'Ananya R.', teacher:false, time:'8 min ago', text:"Do we need to memorise the full equation, or is the word equation enough?"},
-      {author:'Ms Kaushal', teacher:true, time:'5 min ago', text:"The word equation is enough for this test. The balanced version comes in unit 4."},
-    ]},
-  {id:'d2', classId:'math', title:'Quadratics help', pinned:false, unread:false, time:'40m', classmates:24,
-    preview:"Aarav: Can someone explain completing the square?",
-    messages:[
-      {author:'Aarav P.', teacher:false, time:'40 min ago', text:"Can someone explain completing the square? I keep messing up the sign."},
-      {author:'Mr Iyer', teacher:true, time:'25 min ago', text:"Move the constant to the other side first, then halve the b coefficient and square it, and add that to both sides."},
-    ]},
-  {id:'d3', classId:'eng', title:'Essay drafts', pinned:false, unread:false, time:'2h', classmates:19,
-    preview:"Ms Rao posted feedback on the first drafts.",
-    messages:[
-      {author:'Ms Rao', teacher:true, time:'2 hours ago', text:"Feedback on the first drafts is up, check your thesis statements against the rubric before Friday."},
-    ]},
-  {id:'d4', classId:'hist', title:'Unit 2 sources', pinned:true, unread:false, time:'1d', classmates:22,
-    preview:"Pinned: primary source list for the essay.",
-    messages:[
-      {author:'Mr Banerjee', teacher:true, time:'1 day ago', text:"Pinned: primary source list for the essay, six sources minimum, at least two primary."},
-    ]},
 ];
 
 const badges = [
@@ -684,49 +678,141 @@ const AI_RESPONSES_TEACHER = [
 /* =========================================================
    STATE
    ========================================================= */
-let role = 'student';
+let role = 'student';       // driven by the signed-in profile's role
+let me = null;               // {id, full_name, role}
+let myClasses = [];          // real classes from Supabase
+let myThreads = [];          // real threads (with nested messages) from Supabase
 let discFilter = 'all';
-let selectedThreadId = threads[0].id;
+let selectedThreadId = null;
 let aiCallCount = 0;
+let signupRole = 'student';
+let realtimeChannel = null;
+
+function escapeHtml(s){ const d=document.createElement('div'); d.textContent = (s==null?'':s); return d.innerHTML; }
+function initialsFor(name){ return (name||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase(); }
+function timeAgo(iso){
+  const diffMs = Math.max(0, Date.now() - new Date(iso).getTime());
+  const mins = Math.floor(diffMs/60000);
+  if(mins < 1) return 'now';
+  if(mins < 60) return mins+'m';
+  const hrs = Math.floor(mins/60);
+  if(hrs < 24) return hrs+'h';
+  return Math.floor(hrs/24)+'d';
+}
 
 /* =========================================================
-   LOGIN
+   AUTH
    ========================================================= */
-function setLoginRole(r){
-  role = r;
+function setSignupRole(r){
+  signupRole = r;
   document.getElementById('roleBtnStudent').classList.toggle('active', r==='student');
   document.getElementById('roleBtnTeacher').classList.toggle('active', r==='teacher');
+  document.getElementById('signupCodeField').style.display = r==='student' ? 'block' : 'none';
 }
 function setAuthTab(tab){
+  clearAuthError();
   document.getElementById('tabBtnSignin').classList.toggle('active', tab==='signin');
-  document.getElementById('tabBtnJoin').classList.toggle('active', tab==='join');
+  document.getElementById('tabBtnSignup').classList.toggle('active', tab==='signup');
   document.getElementById('signinView').classList.toggle('hidden', tab!=='signin');
-  document.getElementById('joinView').classList.toggle('hidden', tab!=='join');
+  document.getElementById('signupView').classList.toggle('hidden', tab!=='signup');
 }
-function doLogin(){
-  document.getElementById('page-login').style.display='none';
+function showAuthError(msg){
+  const el = document.getElementById('authError');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+function clearAuthError(){ document.getElementById('authError').classList.add('hidden'); }
+
+async function handleSignIn(){
+  clearAuthError();
+  if(!sb){ showAuthError('Supabase is not connected yet — see the banner above.'); return; }
+  const email = document.getElementById('signinEmail').value.trim();
+  const password = document.getElementById('signinPassword').value;
+  if(!email || !password){ showAuthError('Enter your email and password.'); return; }
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  if(error){ showAuthError(error.message); return; }
+  await afterAuth();
+}
+
+async function handleSignUp(){
+  clearAuthError();
+  if(!sb){ showAuthError('Supabase is not connected yet — see the banner above.'); return; }
+  const full_name = document.getElementById('signupName').value.trim();
+  const email = document.getElementById('signupEmail').value.trim();
+  const password = document.getElementById('signupPassword').value;
+  const code = document.getElementById('signupCode').value.trim();
+  if(!full_name || !email || !password){ showAuthError('Fill in your name, email and password.'); return; }
+  const { data, error } = await sb.auth.signUp({ email, password });
+  if(error){ showAuthError(error.message); return; }
+  const userId = data.user && data.user.id;
+  if(!userId){ showAuthError('Account created — check your email to confirm it, then sign in.'); return; }
+  const { error: profileError } = await sb.from('profiles').insert({ id: userId, full_name, role: signupRole });
+  if(profileError){ showAuthError(profileError.message); return; }
+  if(signupRole==='student' && code){
+    const { error: joinError } = await sb.rpc('join_class_by_code', { code });
+    if(joinError) console.warn('Could not join class from signup:', joinError.message);
+  }
+  await afterAuth();
+}
+
+async function afterAuth(){
+  const { data: { user } } = await sb.auth.getUser();
+  if(!user){ showAuthError('Sign in failed, try again.'); return; }
+  const { data: profile, error } = await sb.from('profiles').select('*').eq('id', user.id).single();
+  if(error || !profile){ showAuthError('Signed in, but no profile was found for this account.'); return; }
+  me = { id: user.id, full_name: profile.full_name, role: profile.role };
+  role = me.role;
+  document.getElementById('page-login').style.display = 'none';
   document.getElementById('app-shell').classList.add('active');
   applyRoleChrome();
+  await loadMyClasses();
   goPage('dashboard');
 }
-function logout(){
+
+async function logout(){
+  if(sb) await sb.auth.signOut();
+  if(realtimeChannel){ sb.removeChannel(realtimeChannel); realtimeChannel = null; }
+  me = null; myClasses = []; myThreads = []; selectedThreadId = null;
   document.getElementById('app-shell').classList.remove('active');
-  document.getElementById('page-login').style.display='flex';
+  document.getElementById('page-login').style.display = 'flex';
 }
+
 function applyRoleChrome(){
   const badge = document.getElementById('roleBadge');
   badge.textContent = role==='student' ? 'Student' : 'Teacher';
   badge.className = 'role-badge ' + role;
-  const name = role==='student' ? 'Prithu S.' : 'Ms Kaushal';
-  const sub = role==='student' ? 'Year 9' : 'Biology 9 teacher';
-  const initials = role==='student' ? 'PS' : 'MK';
+  const name = me ? me.full_name : 'You';
+  const initials = initialsFor(name);
   document.getElementById('topAvatar').textContent = initials;
   document.getElementById('sideAvatar').textContent = initials;
   document.getElementById('sideName').textContent = name;
-  document.getElementById('sideRole').textContent = sub;
+  document.getElementById('sideRole').textContent = role==='student' ? 'Student' : 'Teacher';
   document.querySelector('.stat-chip.streak').style.display = role==='student' ? 'flex' : 'none';
   document.querySelector('.stat-chip.points').style.display = role==='student' ? 'flex' : 'none';
 }
+
+/* Restore an existing session on reload, and show the "connect Supabase" banner if needed. */
+(async function initClarion(){
+  if(!supabaseConfigured){
+    document.getElementById('configBanner').classList.remove('hidden');
+    return;
+  }
+  try{
+    const { data: { session } } = await sb.auth.getSession();
+    if(session && session.user){
+      const { data: profile } = await sb.from('profiles').select('*').eq('id', session.user.id).single();
+      if(profile){
+        me = { id: session.user.id, full_name: profile.full_name, role: profile.role };
+        role = me.role;
+        document.getElementById('page-login').style.display = 'none';
+        document.getElementById('app-shell').classList.add('active');
+        applyRoleChrome();
+        await loadMyClasses();
+        goPage('dashboard');
+      }
+    }
+  }catch(e){ console.warn('Session restore failed:', e); }
+})();
 
 /* =========================================================
    NAV
@@ -835,41 +921,93 @@ function renderMiniCal(){
 }
 
 /* =========================================================
-   MY CLASSES
+   MY CLASSES — real data from Supabase
    ========================================================= */
+async function loadMyClasses(){
+  if(!sb || !me){ myClasses = []; return; }
+  let rows = [];
+  if(role==='teacher'){
+    const { data, error } = await sb.from('classes').select('*').eq('teacher_id', me.id).order('created_at');
+    if(error) console.error(error);
+    rows = data || [];
+  } else {
+    const { data, error } = await sb.from('class_members').select('class_id, classes(*)').eq('student_id', me.id);
+    if(error) console.error(error);
+    rows = (data || []).map(r => r.classes).filter(Boolean);
+  }
+  const teacherIds = [...new Set(rows.map(c => c.teacher_id))];
+  let teacherNames = {};
+  if(teacherIds.length){
+    const { data: profs } = await sb.from('profiles').select('id, full_name').in('id', teacherIds);
+    (profs || []).forEach(p => { teacherNames[p.id] = p.full_name; });
+  }
+  myClasses = rows.map(c => ({ ...c, teacher_name: teacherNames[c.teacher_id] || 'Teacher' }));
+}
+
 function renderClasses(){
   const titleEl = document.getElementById('classesTitle');
   const subEl = document.getElementById('classesSub');
-  if(role==='student'){
-    titleEl.textContent = 'My classes';
-    subEl.textContent = 'Four classes this term, six tasks still open.';
+  const actionBtn = document.getElementById('classesActionBtn');
+  titleEl.textContent = 'My classes';
+  actionBtn.textContent = role==='teacher' ? 'Create a class' : 'Join a class';
+
+  if(role==='teacher'){
+    subEl.textContent = myClasses.length
+      ? myClasses.length + ' class' + (myClasses.length===1?'':'es') + ' you teach.'
+      : 'You have not created a class yet.';
   } else {
-    titleEl.textContent = 'My classes';
-    subEl.textContent = 'You teach 1 of these 4 classes shown here as a demo roster.';
+    subEl.textContent = myClasses.length
+      ? myClasses.length + ' class' + (myClasses.length===1?'':'es') + ' joined.'
+      : 'You have not joined a class yet.';
   }
-  const nextTask = cid => tasks.find(t=>t.classId===cid && !t.done) || tasks.find(t=>t.classId===cid);
+
   const grid = document.getElementById('classGrid');
-  grid.innerHTML = classes.map(c=>{
-    const nt = nextTask(c.id);
-    const u = nt ? URGENCY[nt.urgency] : URGENCY.done;
-    const openLabel = role==='student' ? 'Open class' : 'Manage class';
-    return `<div class="card class-card">
+  if(!sb){
+    grid.innerHTML = `<div class="card" style="padding:30px;text-align:center;color:var(--ink-soft);grid-column:1/-1;">Supabase is not connected yet — see the setup banner on the login page.</div>`;
+    return;
+  }
+  if(myClasses.length===0){
+    grid.innerHTML = `<div class="card" style="padding:30px;text-align:center;color:var(--ink-soft);grid-column:1/-1;">
+      ${role==='teacher' ? 'Create your first class to get a join code students can use.' : 'Join a class with the code your teacher gave you.'}
+    </div>`;
+    return;
+  }
+  grid.innerHTML = myClasses.map(c => `
+    <div class="card class-card">
       <div class="class-card-head">
         <div class="class-swatch" style="background:${c.color};"></div>
-        <div><div class="name">${c.name}</div><div class="teacher">${c.teacher}</div></div>
+        <div><div class="name">${escapeHtml(c.name)}</div><div class="teacher">${escapeHtml(c.teacher_name)}</div></div>
       </div>
-      <div class="class-counts">
-        <div><div class="count">${c.tasksDue}</div><div class="clabel">tasks due</div></div>
-        <div><div class="count">${c.newPosts}</div><div class="clabel">new posts</div></div>
-        <div><div class="count">${c.flashcards}</div><div class="clabel">flashcards</div></div>
-      </div>
-      <div class="class-next">
-        <span style="flex:1;">${nt ? 'Next: '+nt.title : 'Nothing due'}</span>
-        <span class="chip" style="background:${u.color}1A;color:${u.color};">${DUE_LABEL[nt?nt.urgency:'done']}</span>
-      </div>
-      <button class="btn btn-ghost class-open-btn" onclick="goPage('discussions')">${openLabel}</button>
-    </div>`;
-  }).join('');
+      ${role==='teacher' ? `<div class="class-next"><span style="flex:1;">Join code</span><span class="chip" style="background:#EFEBFF;color:var(--purple);font-family:monospace;letter-spacing:1px;">${escapeHtml(c.join_code)}</span></div>` : ''}
+      <button class="btn btn-ghost class-open-btn" onclick="goPage('discussions')">Open discussions</button>
+    </div>`).join('');
+}
+
+function handleClassesAction(){
+  if(role==='teacher') createClass(); else joinClassPrompt();
+}
+
+async function createClass(){
+  if(!sb || !me) return;
+  const name = prompt('New class name (e.g. Biology 9):');
+  if(!name) return;
+  const join_code = Math.random().toString(36).slice(2,8).toUpperCase();
+  const palette = ['#6D5DFB','#3B82F6','#12B76A','#0EA5E9','#EF8B09'];
+  const color = palette[myClasses.length % palette.length];
+  const { error } = await sb.from('classes').insert({ name, teacher_id: me.id, join_code, color });
+  if(error){ alert(error.message); return; }
+  await loadMyClasses();
+  renderClasses();
+}
+
+async function joinClassPrompt(){
+  if(!sb || !me) return;
+  const code = prompt('Enter your class code:');
+  if(!code) return;
+  const { error } = await sb.rpc('join_class_by_code', { code: code.trim() });
+  if(error){ alert(error.message); return; }
+  await loadMyClasses();
+  renderClasses();
 }
 
 /* =========================================================
@@ -928,94 +1066,200 @@ function askAI(){
   thread.insertAdjacentHTML('beforeend', `<div class="assistant-msg from-user"><div class="bubble user">${escapeHtml(q)}</div></div><div class="assistant-msg from-ai"><div class="bubble ai">${reply}</div></div>`);
   input.value = '';
 }
-function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
-
 /* =========================================================
-   DISCUSSIONS
+   DISCUSSIONS — real threads/messages from Supabase, with realtime sync
    ========================================================= */
-function renderDiscussions(){
+async function loadThreadsForClasses(){
+  if(!sb || !me || myClasses.length===0){ myThreads = []; return; }
+  const classIds = myClasses.map(c => c.id);
+  const { data: threadRows, error } = await sb.from('threads').select('*').in('class_id', classIds).order('pinned', {ascending:false}).order('created_at', {ascending:false});
+  if(error){ console.error(error); myThreads = []; return; }
+
+  const threadIds = (threadRows || []).map(t => t.id);
+  let messagesByThread = {};
+  if(threadIds.length){
+    const { data: msgRows } = await sb.from('messages').select('*').in('thread_id', threadIds).order('created_at', {ascending:true});
+    (msgRows || []).forEach(m => { (messagesByThread[m.thread_id] = messagesByThread[m.thread_id] || []).push(m); });
+  }
+
+  const authorIds = [...new Set(Object.values(messagesByThread).flat().map(m => m.author_id))];
+  let authorNames = {}, authorRoles = {};
+  if(authorIds.length){
+    const { data: profs } = await sb.from('profiles').select('id, full_name, role').in('id', authorIds);
+    (profs || []).forEach(p => { authorNames[p.id] = p.full_name; authorRoles[p.id] = p.role; });
+  }
+
+  myThreads = (threadRows || []).map(t => {
+    const cls = myClasses.find(c => c.id === t.class_id);
+    const msgs = (messagesByThread[t.id] || []).map(m => ({
+      id: m.id, author_id: m.author_id,
+      author: authorNames[m.author_id] || 'Someone', teacher: authorRoles[m.author_id] === 'teacher',
+      time: timeAgo(m.created_at), text: m.body
+    }));
+    const last = msgs[msgs.length - 1];
+    return {
+      id: t.id, classId: t.class_id,
+      className: cls ? cls.name : 'Class', classColor: cls ? cls.color : '#6D5DFB',
+      title: t.title, pinned: t.pinned, time: timeAgo(t.created_at),
+      preview: last ? (last.author + ': ' + last.text) : 'No messages yet.',
+      messages: msgs
+    };
+  });
+
+  if(!myThreads.find(t => t.id === selectedThreadId)){
+    selectedThreadId = myThreads.length ? myThreads[0].id : null;
+  }
+}
+
+async function renderDiscussions(){
+  await loadThreadsForClasses();
   renderFilterRow();
   renderThreadList();
   renderThreadDetail();
+  subscribeRealtime();
 }
 function renderFilterRow(){
-  const filters = [
-    {id:'all', label:'All'}, {id:'unread', label:'Unread'}, {id:'pinned', label:'Pinned'}, {id:'teacher', label:'Teacher'}
-  ];
+  const filters = [{id:'all', label:'All'}, {id:'pinned', label:'Pinned'}, {id:'mine', label:'Mine'}];
   document.getElementById('filterRow').innerHTML = filters.map(f=>
     `<button class="filter-chip ${discFilter===f.id?'active':''}" onclick="setDiscFilter('${f.id}')">${f.label}</button>`).join('');
 }
 function setDiscFilter(id){ discFilter = id; renderThreadList(); }
 
 function renderThreadList(){
+  const el = document.getElementById('threadList');
+  if(myClasses.length===0){
+    el.innerHTML = `<div style="padding:24px;text-align:center;color:var(--ink-soft);font-size:13px;">${role==='teacher' ? 'Create a class first.' : 'Join a class first.'}</div>`;
+    return;
+  }
   const search = document.getElementById('discSearch').value.toLowerCase();
-  let list = threads.filter(t=>{
-    if(discFilter==='unread' && !t.unread) return false;
+  let list = myThreads.filter(t=>{
     if(discFilter==='pinned' && !t.pinned) return false;
-    if(discFilter==='teacher' && !t.messages.some(m=>m.teacher)) return false;
+    if(discFilter==='mine' && !t.messages.some(m=>m.author_id===me.id)) return false;
     if(search && !(t.title.toLowerCase().includes(search) || t.preview.toLowerCase().includes(search))) return false;
     return true;
   });
-  const el = document.getElementById('threadList');
   if(list.length===0){ el.innerHTML = `<div style="padding:24px;text-align:center;color:var(--ink-soft);font-size:13px;">No threads match.</div>`; return; }
-  el.innerHTML = list.map(t=>{
-    const cls = classById(t.classId);
-    return `<div class="thread-item ${t.id===selectedThreadId?'selected':''}" onclick="selectThread('${t.id}')">
+  el.innerHTML = list.map(t => `
+    <div class="thread-item ${t.id===selectedThreadId?'selected':''}" onclick="selectThread('${t.id}')">
       <div class="top-row">
-        <span class="chip" style="background:${cls.color}1A;color:${cls.color};">${cls.name}</span>
-        ${t.unread?'<span class="unread-dot"></span>':''}
+        <span class="chip" style="background:${t.classColor}1A;color:${t.classColor};">${escapeHtml(t.className)}</span>
         <span class="time">${t.time}</span>
       </div>
-      <div class="title">${t.title}${t.pinned?' &#128204;':''}</div>
-      <div class="preview">${t.preview}</div>
-    </div>`;
-  }).join('');
+      <div class="title">${escapeHtml(t.title)}${t.pinned?' &#128204;':''}</div>
+      <div class="preview">${escapeHtml(t.preview)}</div>
+    </div>`).join('');
 }
 function selectThread(id){ selectedThreadId = id; renderThreadList(); renderThreadDetail(); }
 
 function renderThreadDetail(){
-  const t = threads.find(x=>x.id===selectedThreadId) || threads[0];
-  const cls = classById(t.classId);
   const el = document.getElementById('threadDetail');
+  const t = myThreads.find(x => x.id === selectedThreadId);
+  if(!t){
+    el.innerHTML = `<div style="padding:30px;text-align:center;color:var(--ink-soft);">${
+      myClasses.length===0
+        ? (role==='teacher' ? 'Create a class to start a discussion.' : 'Join a class to see discussions.')
+        : 'Select a thread, or start a new one.'
+    }</div>`;
+    return;
+  }
   el.innerHTML = `
     <div class="thread-detail-head">
-      <h3>${t.title}</h3>
+      <h3>${escapeHtml(t.title)}</h3>
       ${t.pinned ? '<span class="chip" style="background:#FFF3E6;color:var(--orange);">Pinned</span>' : ''}
-      <span class="meta">${t.classmates} classmates</span>
+      ${role==='teacher' ? `<button class="btn btn-ghost btn-sm" onclick="togglePin('${t.id}', ${t.pinned})">${t.pinned?'Unpin':'Pin'}</button>` : ''}
+      <span class="meta">${escapeHtml(t.className)}</span>
     </div>
-    <div class="thread-messages">${t.messages.map(m=>msgRowHTML(m, cls)).join('')}</div>
+    <div class="thread-messages">${t.messages.length ? t.messages.map(m=>msgRowHTML(m)).join('') : '<div style="color:var(--ink-soft);font-size:13px;">No messages yet — say something first.</div>'}</div>
     <div class="composer">
-      <div class="avatar-circ" style="width:32px;height:32px;font-size:11px;">${role==='student'?'PS':'MK'}</div>
-      <input type="text" placeholder="Reply in ${cls.name}" onkeydown="if(event.key==='Enter') postReply('${t.id}', this)">
-      <button class="btn btn-primary btn-sm" onclick="postReply('${t.id}', this.previousElementSibling)">Post</button>
+      <div class="avatar-circ" style="width:32px;height:32px;font-size:11px;">${initialsFor(me.full_name)}</div>
+      <input type="text" id="replyInput" placeholder="Reply in ${escapeHtml(t.className)}" onkeydown="if(event.key==='Enter') postReply('${t.id}')">
+      <button class="btn btn-primary btn-sm" onclick="postReply('${t.id}')">Post</button>
     </div>`;
 }
-function msgRowHTML(m, cls){
-  const initials = m.author.split(' ').map(w=>w[0]).join('').slice(0,2);
+function msgRowHTML(m){
+  const canDelete = me.id===m.author_id || role==='teacher';
   return `<div class="msg-row">
-    <div class="avatar-circ" style="background:${m.teacher?'linear-gradient(135deg,var(--purple),var(--blue))':'#EEF0F7'};color:${m.teacher?'#fff':'var(--ink-soft)'};">${initials}</div>
+    <div class="avatar-circ" style="background:${m.teacher?'linear-gradient(135deg,var(--purple),var(--blue))':'#EEF0F7'};color:${m.teacher?'#fff':'var(--ink-soft)'};">${initialsFor(m.author)}</div>
     <div class="msg-body">
-      <div class="msg-top"><span class="author">${m.author}</span>${m.teacher?'<span class="chip" style="background:#F1EEFF;color:var(--purple);height:18px;padding:0 8px;font-size:10.5px;">Teacher</span>':''}<span class="time">${m.time}</span></div>
-      <div class="msg-text">${m.text}</div>
+      <div class="msg-top">
+        <span class="author">${escapeHtml(m.author)}</span>
+        ${m.teacher?'<span class="chip" style="background:#F1EEFF;color:var(--purple);height:18px;padding:0 8px;font-size:10.5px;">Teacher</span>':''}
+        <span class="time">${m.time}</span>
+        ${canDelete ? `<button class="btn btn-ghost btn-sm" style="padding:2px 8px;font-size:11px;" onclick="deleteMessage('${m.id}')">Delete</button>` : ''}
+      </div>
+      <div class="msg-text">${escapeHtml(m.text)}</div>
     </div>
   </div>`;
 }
-function postReply(threadId, inputEl){
-  const text = inputEl.value.trim();
+async function postReply(threadId){
+  const input = document.getElementById('replyInput');
+  const text = input.value.trim();
   if(!text) return;
-  const t = threads.find(x=>x.id===threadId);
-  t.messages.push({author: role==='student'?'Prithu S.':'Ms Kaushal', teacher: role==='teacher', time:'Just now', text});
-  inputEl.value = '';
+  input.disabled = true;
+  const { error } = await sb.from('messages').insert({ thread_id: threadId, author_id: me.id, body: text });
+  input.disabled = false;
+  if(error){ alert(error.message); return; }
+  await loadThreadsForClasses();
+  renderThreadList();
   renderThreadDetail();
 }
-function openNewThread(){
-  const title = prompt('New thread title:');
+async function deleteMessage(id){
+  if(!confirm('Delete this message?')) return;
+  const { error } = await sb.from('messages').delete().eq('id', id);
+  if(error){ alert(error.message); return; }
+  await loadThreadsForClasses();
+  renderThreadList();
+  renderThreadDetail();
+}
+async function togglePin(threadId, currentlyPinned){
+  const { error } = await sb.from('threads').update({ pinned: !currentlyPinned }).eq('id', threadId);
+  if(error){ alert(error.message); return; }
+  await loadThreadsForClasses();
+  renderThreadList();
+  renderThreadDetail();
+}
+async function openNewThread(){
+  if(!sb || !me) return;
+  if(myClasses.length===0){ alert(role==='teacher' ? 'Create a class first.' : 'Join a class first.'); return; }
+  let classId = myClasses[0].id;
+  if(myClasses.length > 1){
+    const names = myClasses.map(c=>c.name).join(', ');
+    const chosen = prompt('Which class? (' + names + ')', myClasses[0].name);
+    if(!chosen) return;
+    const match = myClasses.find(c => c.name.toLowerCase() === chosen.trim().toLowerCase());
+    if(!match){ alert('No class matches that name.'); return; }
+    classId = match.id;
+  }
+  const title = prompt('Thread title:');
   if(!title) return;
-  const t = {id:'d'+Date.now(), classId: classes[0].id, title, pinned:false, unread:false, time:'Just now', classmates: 20,
-    preview:'(new thread, add your first post)', messages:[]};
-  threads.unshift(t);
-  selectedThreadId = t.id;
-  renderDiscussions();
+  const { error } = await sb.from('threads').insert({ class_id: classId, title, created_by: me.id });
+  if(error){ alert(error.message); return; }
+  await loadThreadsForClasses();
+  renderThreadList();
+  renderThreadDetail();
+}
+
+/* Realtime: any insert/update/delete on threads or messages for the user's
+   classes re-loads the discussions view, so two open tabs (teacher + student)
+   stay in sync live. */
+function subscribeRealtime(){
+  if(!sb || !me) return;
+  if(realtimeChannel){ sb.removeChannel(realtimeChannel); realtimeChannel = null; }
+  if(myClasses.length===0) return;
+  realtimeChannel = sb.channel('clarion-discussions-' + me.id)
+    .on('postgres_changes', { event:'*', schema:'public', table:'messages' }, handleRealtimeChange)
+    .on('postgres_changes', { event:'*', schema:'public', table:'threads' }, handleRealtimeChange)
+    .subscribe();
+}
+let realtimePending = false;
+async function handleRealtimeChange(){
+  if(!document.getElementById('view-discussions').classList.contains('active')) return;
+  if(realtimePending) return;
+  realtimePending = true;
+  await loadThreadsForClasses();
+  renderThreadList();
+  renderThreadDetail();
+  realtimePending = false;
 }
 
 /* =========================================================
