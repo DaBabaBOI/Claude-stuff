@@ -6,7 +6,8 @@ export default function Home() {
     <Container className="flex flex-col gap-6 py-16">
       <h1 className="text-3xl font-semibold tracking-tight">Hacktrack</h1>
       <p className="text-muted-foreground">
-        Starter scaffold — theme not announced yet.
+        SHISTECH project, SDG-11: Sustainable Cities and Communities. More
+        coming soon.
       </p>
       <div className="flex flex-wrap gap-3">
         <Button variant="primary">Primary</Button>

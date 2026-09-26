@@ -1,6 +1,8 @@
 # Hacktrack
 
-Hacktrack / SHISTECH hackathon starter. TODO: fill in once the theme is announced.
+Hackathon project for SHISTECH. Theme is UN SDGs, we're going with Sustainable
+Cities and Communities (SDG-11) — building something around a sustainable city.
+Still figuring out the exact feature set, this repo is just the base to build on.
 
 ## Prerequisites
 
@@ -41,8 +43,8 @@ src/
   types/        Shared TypeScript types, once we have any
 ```
 
-Keep names generic until the hackathon theme is announced — nothing here
-should be named after a guessed feature or domain.
+Keep names generic for now — until we've actually agreed on what we're
+building, don't name files/folders after a guessed feature.
 
 ## Branch and commit conventions
 

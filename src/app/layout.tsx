@@ -5,7 +5,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Hacktrack",
-  description: "Hackathon starter scaffold",
+  description: "SHISTECH hackathon project — Sustainable Cities and Communities (SDG-11)",
 };
 
 export default function RootLayout({
