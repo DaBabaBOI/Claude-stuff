@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Clarion</title>
-<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script src="vendor.supabase.js"></script>
 <style>
   :root{
     --purple:#6D5DFB;
@@ -583,11 +583,12 @@
    then reload the page. Everything else in this file works once these
    two lines are filled in and supabase_schema.sql has been run.
    ========================================================= */
-const SUPABASE_URL = 'https://YOUR-PROJECT.supabase.co';
-const SUPABASE_ANON_KEY = 'YOUR-ANON-KEY';
+const SUPABASE_URL = 'https://gjuspizovclsrllclvta.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdqdXNwaXpvdmNsc3JsbGNsdnRhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzMTYxNTMsImV4cCI6MjA5MTg5MjE1M30.8wCjKyKvauugXWBx-ktZRhCmQx-6UqOKRu7vFhbLiYE';
 
 const supabaseConfigured = !SUPABASE_URL.includes('YOUR-PROJECT') && !SUPABASE_ANON_KEY.includes('YOUR-ANON-KEY');
-const sb = supabaseConfigured ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+const supabaseLibLoaded = typeof supabase !== 'undefined' && typeof supabase.createClient === 'function';
+const sb = (supabaseConfigured && supabaseLibLoaded) ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
 /* =========================================================
    CLARION — demo data
@@ -793,6 +794,12 @@ function applyRoleChrome(){
 
 /* Restore an existing session on reload, and show the "connect Supabase" banner if needed. */
 (async function initClarion(){
+  if(!supabaseLibLoaded){
+    const el = document.getElementById('configBanner');
+    el.textContent = 'The Supabase library (vendor.supabase.js) did not load. Make sure that file is sitting next to clarion.html, then reload this page.';
+    el.classList.remove('hidden');
+    return;
+  }
   if(!supabaseConfigured){
     document.getElementById('configBanner').classList.remove('hidden');
     return;
