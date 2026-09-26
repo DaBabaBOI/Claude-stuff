@@ -743,12 +743,18 @@ async function handleSignUp(){
   const password = document.getElementById('signupPassword').value;
   const code = document.getElementById('signupCode').value.trim();
   if(!full_name || !email || !password){ showAuthError('Fill in your name, email and password.'); return; }
-  const { data, error } = await sb.auth.signUp({ email, password });
+  // full_name/role travel as signup metadata; a database trigger creates the
+  // profiles row server-side the instant the account exists, so it works
+  // even before email confirmation (when there's no session yet to write with).
+  const { data, error } = await sb.auth.signUp({
+    email, password,
+    options: { data: { full_name, role: signupRole } }
+  });
   if(error){ showAuthError(error.message); return; }
-  const userId = data.user && data.user.id;
-  if(!userId){ showAuthError('Account created — check your email to confirm it, then sign in.'); return; }
-  const { error: profileError } = await sb.from('profiles').insert({ id: userId, full_name, role: signupRole });
-  if(profileError){ showAuthError(profileError.message); return; }
+  if(!data.session){
+    showAuthError('Account created — check your email for a confirmation link, then come back and sign in.');
+    return;
+  }
   if(signupRole==='student' && code){
     const { error: joinError } = await sb.rpc('join_class_by_code', { code });
     if(joinError) console.warn('Could not join class from signup:', joinError.message);

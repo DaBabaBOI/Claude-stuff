@@ -195,6 +195,35 @@ begin
 end;
 $$;
 
+-- ---------- AUTO-CREATE PROFILE ON SIGNUP ----------
+-- Creates the profiles row server-side the instant an auth user is created,
+-- using the full_name/role passed as signUp() options.data. Runs with
+-- elevated privileges (security definer) so it works even before the user
+-- has a session — e.g. while email confirmation is still pending, which is
+-- exactly when a client-side insert would otherwise be blocked by RLS.
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.profiles (id, full_name, role)
+  values (
+    new.id,
+    coalesce(new.raw_user_meta_data->>'full_name', split_part(new.email, '@', 1)),
+    coalesce(new.raw_user_meta_data->>'role', 'student')
+  )
+  on conflict (id) do nothing;
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function public.handle_new_user();
+
 -- ---------- REALTIME ----------
 -- Let Supabase broadcast inserts on these tables so open tabs update live.
 alter publication supabase_realtime add table threads;
