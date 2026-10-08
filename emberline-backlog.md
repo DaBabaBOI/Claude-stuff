@@ -6,18 +6,19 @@ under "Fixed" so they aren't picked up twice.
 
 ## Big changes (waiting)
 
-- **Bring back the pixel-art cutscenes** (Patrick, "Emberline Review", 8 Oct 07:05 UTC).
-  "ADD BACK THE PIXEL ANIMATIONS. It adds its own identity to the game,
-  everything 3D isn't great, the pixel animations had their own thing."
-  The 2D scenes were replaced by 3D ones in commit d845d1b (the old code is
-  in git history). Options: restore the 2D scenes, or offer a setting
-  (Pixel / 3D cutscenes). A design call for Prithu.
 - **Make "Emberline 2" official, or ship more updates** (Raghuvir, "Emberline 2", 8 Oct).
   An unofficial fork: https://froodyofficial-maker.github.io/Emberline-2/ .
   Prithu replied "tell me what u guys want"; no list yet.
-- **Speedrun mode / controls** (Patrick, 7 Oct). A dedicated game mode or
-  controls for speedrunning, introduced later once more people have beaten
-  the game (worry: speedrunning may cause game fatigue).
+- **Speedrun mode / controls** (Patrick, 7 Oct). Deferred on purpose: the
+  opt-in speedrun timer is enough for now (Prithu, 8 Oct), and a mode of its
+  own could bring on game fatigue sooner.
+
+## Done (big changes, already summarized or shipped)
+
+- Pixel-art cutscenes are back as a setting (Menu > Graphics > Cutscenes:
+  3D or Pixel). Commit 3feabe5.
+- Discovery scenes act out what happened, in both styles (raft built from
+  drifting logs, seeds sprouting into wheat, animals walking in). Commit 6a6b9dc.
 
 ## Needs a repro
 
