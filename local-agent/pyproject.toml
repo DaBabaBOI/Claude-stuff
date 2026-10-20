@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "localagent"
+version = "0.1.0"
+description = "A private AI assistant that runs on your own laptop: organizes files, reads your Google Calendar, keeps a to-do list. No API keys."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "icalendar>=5.0",
+    "recurring-ical-events>=2.1",
+    "tomli>=2.0; python_version < '3.11'",
+    "tzdata; sys_platform == 'win32'",  # Windows has no built-in time zone database
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[project.scripts]
+localagent = "localagent.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["localagent*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

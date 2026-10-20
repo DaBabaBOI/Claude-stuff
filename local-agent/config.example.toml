@@ -1,0 +1,50 @@
+# LocalAgent settings.
+# Copy this file to ~/.localagent/config.toml (recommended) or ./config.toml and edit it.
+# Keep it private: it will contain your calendar's secret link.
+
+[model]
+# Any Ollama model that supports tools. Download it first with:  ollama pull <name>
+#   qwen3:8b      – good default, ~5 GB, needs ~8 GB RAM free
+#   qwen3:4b      – lighter, for 8 GB laptops
+#   llama3.1:8b   – solid alternative
+#   gpt-oss:20b   – smarter but needs ~16 GB RAM
+name = "qwen3:8b"
+host = "http://localhost:11434"
+temperature = 0.2
+# How much conversation the model can see at once (in tokens). 16384 works better
+# if you have 16 GB+ of RAM; lower it to 4096 if the model is slow or runs out of memory.
+context_window = 8192
+# Thinking models (like qwen3) reason before answering: smarter but much slower. false = fast.
+think = false
+
+[files]
+# The ONLY folders the agent can see or change. Everything else is off-limits.
+allowed_folders = ["~/Desktop", "~/Documents", "~/Downloads", "~/Pictures"]
+# Windows example:  allowed_folders = ["~/Desktop", "~/Documents", "~/Downloads", "D:/Photos"]
+
+# Optional: extra file types for "organize by type" (folder name = list of extensions).
+# [files.categories]
+# "Ebooks" = ["epub", "mobi", "azw3"]
+# "3D Prints" = ["stl", "3mf", "gcode"]
+
+[calendar]
+refresh_minutes = 15        # how often to re-download your calendar
+workday_start = "09:00"     # used when looking for free time
+workday_end = "18:00"
+# timezone = "Asia/Kolkata" # optional; defaults to your computer's time zone
+
+# One block per calendar. To get the link for a Google Calendar:
+#   calendar.google.com → ⚙ Settings → click your calendar on the left (under "Settings for my calendars")
+#   → "Integrate calendar" → copy "Secret address in iCal format".
+[[calendar.sources]]
+name = "Personal"
+url = "PASTE-YOUR-SECRET-ICAL-ADDRESS-HERE"
+
+# [[calendar.sources]]
+# name = "Work"
+# url = "https://calendar.google.com/calendar/ical/.../basic.ics"
+
+# A downloaded .ics file works too (e.g. exported from Outlook or Apple Calendar):
+# [[calendar.sources]]
+# name = "Uni timetable"
+# path = "~/Documents/timetable.ics"

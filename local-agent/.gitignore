@@ -1,0 +1,8 @@
+# Your config holds your private calendar link — never commit it.
+config.toml
+
+__pycache__/
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
