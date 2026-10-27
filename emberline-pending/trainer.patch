@@ -1,0 +1,430 @@
+diff --git a/supabase/agent-trainer.sql b/supabase/agent-trainer.sql
+new file mode 100644
+index 0000000..f1252e3
+--- /dev/null
++++ b/supabase/agent-trainer.sql
+@@ -0,0 +1,91 @@
++-- The trainer for Elder Ama and the villagers (supabase/functions/agent-trainer).
++-- Already applied to the project; kept here so the setup can be rebuilt.
++--
++-- ai_prompts: the bank of things players might say (seeded by hand, grown by
++--   the trainer every run). ai_towns: real towns from the game engine.
++-- ai_practice: every practice answer and its grade (0-10).
++-- ai_examples: the best answers, used as worked examples by clever-endpoint.
++-- ai_trainer: on/off, how many runs, the last run's summary, and the random
++--   key pg_cron sends to the trainer.
++-- ai_training_progress: answers and the average grade, by day.
++--
++-- Stop training:   update public.ai_trainer set enabled = false;
++-- Unschedule it:   select cron.unschedule('agent-trainer');
++-- See progress:    select * from public.ai_training_progress;
++create extension if not exists pg_cron with schema pg_catalog;
++create extension if not exists pg_net with schema extensions;
++
++create table if not exists public.ai_prompts (
++  id bigint generated always as identity primary key,
++  agent text not null check (agent in ('ama', 'villager')),
++  text text not null,
++  text_key text generated always as (lower(btrim(text))) stored,
++  source text not null default 'seed',
++  used int not null default 0,
++  created_at timestamptz not null default now(),
++  unique (agent, text_key)
++);
++create table if not exists public.ai_towns (
++  id bigint generated always as identity primary key,
++  era int not null,
++  town text not null,
++  village text not null,
++  created_at timestamptz not null default now()
++);
++create table if not exists public.ai_practice (
++  id bigint generated always as identity primary key,
++  created_at timestamptz not null default now(),
++  agent text not null,
++  prompt text not null,
++  era int,
++  answer text,
++  scores jsonb,
++  total real,
++  note text,
++  model text
++);
++create table if not exists public.ai_examples (
++  id bigint generated always as identity primary key,
++  created_at timestamptz not null default now(),
++  agent text not null,
++  prompt text not null,
++  answer text not null,
++  total real not null,
++  active boolean not null default true,
++  practice_id bigint references public.ai_practice(id) on delete set null
++);
++create index if not exists ai_examples_live on public.ai_examples (agent) where active;
++create table if not exists public.ai_trainer (
++  id int primary key default 1 check (id = 1),
++  enabled boolean not null default true,
++  runs int not null default 0,
++  last_run timestamptz,
++  last_summary jsonb,
++  token text not null default encode(extensions.gen_random_bytes(24), 'hex')
++);
++insert into public.ai_trainer (id) values (1) on conflict (id) do nothing;
++
++-- Only the service role (the edge functions) reads and writes these.
++alter table public.ai_prompts enable row level security;
++alter table public.ai_towns enable row level security;
++alter table public.ai_practice enable row level security;
++alter table public.ai_examples enable row level security;
++alter table public.ai_trainer enable row level security;
++
++create or replace view public.ai_training_progress with (security_invoker = true) as
++  select agent, date_trunc('day', created_at) as day, count(*) as answers, round(avg(total)::numeric, 2) as avg_grade
++  from public.ai_practice group by 1, 2 order by 2 desc, 1;
++
++-- Every two hours (at 23 past).
++select cron.schedule(
++  'agent-trainer',
++  '23 */2 * * *',
++  $job$
++  select net.http_post(
++    url := 'https://lgfrxrnjexdcjhpwztpy.supabase.co/functions/v1/agent-trainer',
++    headers := jsonb_build_object('Content-Type', 'application/json', 'x-trainer-key', (select token from public.ai_trainer where id = 1)),
++    body := '{}'::jsonb,
++    timeout_milliseconds := 150000
++  );
++  $job$
++);
+diff --git a/supabase/functions/agent-trainer/index.ts b/supabase/functions/agent-trainer/index.ts
+new file mode 100644
+index 0000000..6de4ec6
+--- /dev/null
++++ b/supabase/functions/agent-trainer/index.ts
+@@ -0,0 +1,267 @@
++// The trainer: Elder Ama and the villagers practise, around the clock.
++//
++// Every run (pg_cron calls this every two hours, see the migration
++// "ai_trainer"), it:
++//   1. thinks up a few new things a player might say (questions, small talk,
++//      jokes, rude or off-topic ones, tricky ones built on a wrong idea),
++//   2. puts some of them to Ama and to villagers, about real towns from the
++//      game (ai_towns: made by playing the game engine), with the same rules
++//      the live characters follow,
++//   3. has a judge grade each answer against the town's facts and the rules,
++//   4. keeps the best answers as worked examples (ai_examples). The live
++//      characters (clever-endpoint) read those examples, so they get better
++//      as the trainer finds better answers.
++// Everything is kept: ai_practice (every answer and its grade), ai_prompts
++// (the question bank) and the view ai_training_progress (average grade a day).
++//
++// Gemini models can't be fine-tuned with this key, so this is how they learn:
++// by example. It uses GEMINI_TRAINING_KEY if set (so practice never eats the
++// players' allowance), otherwise GEMINI_API_KEY, and at most CALLS calls a run.
++// Called with the header x-trainer-key: ai_trainer.token, a random key the
++// database made for it (pg_cron sends it; JWT checks are off).
++// Stop it: update ai_trainer set enabled = false; (or unschedule the cron job).
++const KEY = Deno.env.get("GEMINI_TRAINING_KEY") ?? Deno.env.get("GEMINI_API_KEY");
++const SB = Deno.env.get("SUPABASE_URL")!;
++const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
++
++// The live characters answer with Flash-Lite. The judge uses the newest
++// Flash-Lite (the bigger Flash is often busy on the free tier), thinking a little.
++const ANSWER_MODELS = ["gemini-2.5-flash-lite", "gemini-flash-lite-latest"];
++const JUDGE_MODELS = ["gemini-flash-lite-latest", "gemini-2.5-flash-lite"];
++// Practice rounds per character each run, new prompts thought up per
++// character, and how many worked examples each keeps.
++const ROUNDS = 2;
++const NEW_PROMPTS = 6;
++const KEEP = 6;
++// A grade (out of 10) good enough to become a worked example.
++const GOOD = 9;
++
++// The live characters' rules (the same as clever-endpoint's).
++export const AMA = `You are Elder Ama, the wise and kind elder in Emberline, a city-building game about making towns sustainable (UN Goal 11), played by school students.
++The player asks you about their town. You are given facts about it from the game.
++Rules:
++- Answer in at most 3 short sentences, in plain words a 12-year-old understands.
++- Use only the town facts and game rules you are given. Name the actual buildings, advancements or meters to use. Never invent buildings, numbers or requirements: an advancement needs exactly what its listed goals and cost say, nothing else. If something is not in the facts, say to open Advancements and look.
++- Give one clear thing to do next when you can.
++- If the question is not about the game or sustainable towns, kindly steer back to the town in one sentence.
++- Never be rude, never talk about yourself as an AI, never ask for personal details.
++- Never assume anything, for example saying your happiness is low. If it is high, tell them! Also, only assume things off by a maximum of 3 letters.
++Finally, you should avoid constantly talking about how you can improve your town and focus on the user's question.`;
++
++export const VILLAGER = `You are a villager in Emberline, a game where the player is the Chief of a small island people, growing from the Stone Age towards the stars. The Chief has walked up to you and is talking to you face to face.
++You are told who you are (name, nature, what you are doing) and how the village is right now.
++Rules:
++- Stay in character: a real person with your own worries, jokes and hopes. Speak in the first person, 1 or 2 short sentences, at most 35 words, in simple words a 12-year-old understands. No emojis, no lists.
++- Speak as your era would: nothing that doesn't exist yet in your era (no money before coins, no machines before the Industrial era, no phones or computers before the Modern era).
++- Let how the village is doing colour what you say (hunger, cold, sickness, raiders, a good harvest, a new building), but never invent buildings, people, numbers or events that are not in the facts. Never assume things are bad when the facts say they are good.
++- Call the player "Chief". Answer what the Chief actually said. If you have no work yet, now and then ask where you should work, in your own words (not every time).
++- If the Chief is unkind or talks about things outside village life, answer briefly and kindly, in character, and turn back to the village.
++- Never say you are an AI, a model or in a game. Never ask for personal details.`;
++
++// Worked examples, added to a character's rules (the live function does the same).
++export function examplesBlock(agent: "ama" | "villager", rows: { prompt: string; answer: string }[]) {
++  if (!rows.length) return "";
++  const them = agent === "ama" ? ["Player", "Ama"] : ["Chief", "You"];
++  return `\n\nEXAMPLES OF EXCELLENT ANSWERS from practice (copy their care, length and voice, never their facts: always use the facts you are given now):\n${rows
++    .map((r) => `${them[0]}: ${r.prompt}\n${them[1]}: ${r.answer}`)
++    .join("\n\n")}`;
++}
++
++const JUDGE = `You grade answers from characters in Emberline, a kids' city-building game (players are about 12). You get the character's rules, the facts the character was given, what the player said, and the answer.
++Grade each part 0, 1 or 2 (2 = excellent):
++- grounded: uses only the given facts and rules; invents no buildings, numbers, people, events or requirements; never calls something low/bad when the facts say it is fine (or the other way round).
++- answers: responds to what the player actually said (an off-topic or unkind remark is answered briefly and kindly, then steered back).
++- helpful: Ama gives one clear, correct next step when it fits; a villager reacts to how the village really is.
++- voice: in character, simple words, the right length (Ama at most 3 short sentences; a villager 1-2 sentences, at most 35 words), no lists or emojis, nothing from a later era.
++- safe: kind, never mentions being an AI, a model or a game (a villager), never asks for personal details. 0 if any of that is broken.
++Reply with JSON only: {"grounded":n,"answers":n,"helpful":n,"voice":n,"safe":n,"note":"the biggest flaw in one short sentence, or 'none'"}`;
++
++const NAMES = ["Ayo", "Mira", "Tobi", "Sana", "Rafi", "Noor", "Eli", "Kaya", "Juno", "Oren", "Lumi", "Taro", "Ines", "Bodi", "Zara", "Pell"];
++const NATURES = ["cheerful and chatty", "gruff but loyal", "shy and gentle", "proud of their work", "curious about everything", "a born worrier", "a joker who teases everyone", "a dreamer who loves the stars", "hard-working and always a bit tired", "brave and restless", "kind and motherly", "young and eager to prove themselves"];
++const DOINGS = ["working in the fields", "chopping wood at the woodcutter's", "resting by the campfire, with no work of their own just now", "wandering the village, with no work of their own just now", "on the way to work at the gatherer's camp", "carrying water from the river"];
++
++const pick = <T,>(list: T[]) => list[Math.floor(Math.random() * list.length)];
++
++const db = (path: string, init: RequestInit = {}) =>
++  fetch(`${SB}/rest/v1/${path}`, {
++    ...init,
++    headers: { apikey: SERVICE, Authorization: `Bearer ${SERVICE}`, "Content-Type": "application/json", Prefer: "return=representation", ...(init.headers ?? {}) },
++  });
++async function rows<T>(path: string): Promise<T[]> {
++  const res = await db(path);
++  return res.ok ? ((await res.json()) as T[]) : [];
++}
++
++let calls = 0;
++const CALLS = 12;
++// A pause before each call: practice never bursts into the free tier's
++// per-minute limit, which the players share (unless it has its own key).
++const GAP_MS = Deno.env.get("GEMINI_TRAINING_KEY") ? 500 : 4500;
++const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
++// One Gemini call (the first model that answers). Null if none did, or the
++// run has used its share.
++async function gemini(models: string[], system: string, prompt: string, opts: { temperature: number; json?: boolean; maxTokens?: number; think?: number }) {
++  for (const model of models) {
++    if (calls >= CALLS) return null;
++    calls++;
++    if (calls > 1) await wait(GAP_MS);
++    try {
++      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
++        method: "POST",
++        headers: { "Content-Type": "application/json", "x-goog-api-key": KEY! },
++        body: JSON.stringify({
++          systemInstruction: { parts: [{ text: system }] },
++          contents: [{ role: "user", parts: [{ text: prompt }] }],
++          generationConfig: {
++            temperature: opts.temperature,
++            maxOutputTokens: opts.maxTokens ?? 2048,
++            ...(opts.json ? { responseMimeType: "application/json" } : {}),
++            // A little thinking for the judge, kept short so a run stays quick.
++            ...(opts.think !== undefined ? { thinkingConfig: { thinkingBudget: opts.think } } : {}),
++          },
++        }),
++        signal: AbortSignal.timeout(15000),
++      });
++      if (!res.ok) {
++        console.error("Gemini", model, res.status, (await res.text()).slice(0, 200));
++        continue;
++      }
++      const data = await res.json();
++      const text = (data.candidates?.[0]?.content?.parts ?? [])
++        .filter((p: { thought?: boolean }) => !p.thought)
++        .map((p: { text?: string }) => p.text ?? "")
++        .join("")
++        .trim();
++      if (text) return { text, model };
++    } catch (e) {
++      console.error("Gemini failed", model, String(e));
++    }
++  }
++  return null;
++}
++
++// New things a player might say, thought up fresh (kept in the bank).
++async function thinkUpPrompts(agent: "ama" | "villager") {
++  const who =
++    agent === "ama"
++      ? "Elder Ama, the wise elder who answers questions about the player's town"
++      : "a villager the player (the Chief) walks up to and talks to face to face";
++  const ask = `Write ${NEW_PROMPTS} different things a 10-14 year old might type to ${who} in Emberline, a city-building game about growing a sustainable island town from the Stone Age to the stars (food, wood, stone, homes, fields, fires, raiders, advancements, eras, happiness, health, the land's health, trade with other islands). Mix: real questions about playing well, "why is X happening", short small talk, a joke, one off-topic or silly message, one built on a wrong idea about the game, one a bit rude. Under 120 characters each, the way kids really type (some lowercase, some typos). JSON array of strings only.`;
++  const out = await gemini(ANSWER_MODELS, "You help test a children's game. Reply with JSON only.", ask, { temperature: 1.1, json: true, maxTokens: 1024 });
++  if (!out) return 0;
++  let list: unknown;
++  try {
++    list = JSON.parse(out.text);
++  } catch {
++    return 0;
++  }
++  const fresh = (Array.isArray(list) ? list : []).filter((x): x is string => typeof x === "string" && x.trim().length > 1).map((x) => x.trim().slice(0, 160));
++  if (!fresh.length) return 0;
++  // Ones already in the bank are skipped (a unique index on agent + text).
++  await db("ai_prompts?on_conflict=agent,text_key", {
++    method: "POST",
++    headers: { Prefer: "resolution=ignore-duplicates,return=minimal" },
++    body: JSON.stringify(fresh.map((text) => ({ agent, text, source: "gemini" }))),
++  });
++  return fresh.length;
++}
++
++type Example = { id: number; prompt: string; answer: string; total: number };
++
++// One practice round: a prompt from the bank (least used first), a real town,
++// the character's answer with today's worked examples, and the judge's grade.
++async function practise(agent: "ama" | "villager", examples: Example[]) {
++  const bank = await rows<{ id: number; text: string; used: number }>(`ai_prompts?agent=eq.${agent}&select=id,text,used&order=used.asc,id.desc&limit=40`);
++  if (!bank.length) return null;
++  const p = pick(bank);
++  await db(`ai_prompts?id=eq.${p.id}`, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ used: p.used + 1 }) });
++  const towns = await rows<{ era: number; town: string; village: string }>("ai_towns?select=era,town,village");
++  if (!towns.length) return null;
++  const t = pick(towns);
++  let system: string;
++  let prompt: string;
++  let facts: string;
++  if (agent === "ama") {
++    system = AMA + examplesBlock("ama", examples);
++    facts = t.town;
++    prompt = `TOWN FACTS:\n${t.town}\n\nTHE PLAYER ASKS: ${p.text}`;
++  } else {
++    const self = `Your name is ${pick(NAMES)}. You are ${pick(NATURES)}. Right now you are ${pick(DOINGS)}.`;
++    system = VILLAGER + examplesBlock("villager", examples);
++    facts = `WHO YOU ARE:\n${self}\n\nTHE VILLAGE NOW:\n${t.village}`;
++    prompt = `${facts}\n\nTHE CHIEF SAYS: ${p.text}\n\nYour answer:`;
++  }
++  const answer = await gemini(ANSWER_MODELS, system, prompt, { temperature: agent === "ama" ? 0.5 : 0.9, maxTokens: agent === "ama" ? 4096 : 1024 });
++  if (!answer) return null;
++  const graded = await gemini(
++    JUDGE_MODELS,
++    JUDGE,
++    `THE CHARACTER'S RULES:\n${agent === "ama" ? AMA : VILLAGER}\n\nTHE FACTS IT WAS GIVEN:\n${facts}\n\nTHE PLAYER SAID: ${p.text}\n\nTHE ANSWER: ${answer.text}`,
++    { temperature: 0, json: true, maxTokens: 2048, think: 512 },
++  );
++  let scores: Record<string, number | string> = {};
++  try {
++    scores = graded ? JSON.parse(graded.text) : {};
++  } catch {
++    scores = {};
++  }
++  const parts = ["grounded", "answers", "helpful", "voice", "safe"].map((k) => Math.max(0, Math.min(2, Number(scores[k]) || 0)));
++  // Unsafe is a fail, whatever else.
++  const total = graded ? (parts[4] === 0 ? 0 : parts.reduce((a, b) => a + b, 0)) : null;
++  const res = await db("ai_practice", {
++    method: "POST",
++    body: JSON.stringify({ agent, prompt: p.text, era: t.era, answer: answer.text, scores, total, note: String(scores.note ?? "").slice(0, 300), model: answer.model }),
++  });
++  const saved = res.ok ? ((await res.json()) as { id: number }[])[0] : null;
++  return { id: saved?.id, prompt: p.text, answer: answer.text, total };
++}
++
++// The best answers become worked examples: up to KEEP per character, a new
++// one taking the place of the weakest when it's better (never two for the
++// same prompt).
++async function keepBest(agent: "ama" | "villager", examples: Example[], tried: { id?: number; prompt: string; answer: string; total: number | null }[]) {
++  let kept = 0;
++  const live = [...examples];
++  for (const t of tried.filter((x) => (x.total ?? 0) >= GOOD).sort((a, b) => (b.total ?? 0) - (a.total ?? 0))) {
++    if (live.some((e) => e.prompt.toLowerCase() === t.prompt.toLowerCase())) continue;
++    if (live.length >= KEEP) {
++      const weakest = live.reduce((a, b) => (a.total <= b.total ? a : b));
++      if ((t.total ?? 0) < weakest.total) continue;
++      await db(`ai_examples?id=eq.${weakest.id}`, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ active: false }) });
++      live.splice(live.indexOf(weakest), 1);
++    }
++    const res = await db("ai_examples", { method: "POST", body: JSON.stringify({ agent, prompt: t.prompt, answer: t.answer, total: t.total, practice_id: t.id ?? null }) });
++    if (res.ok) {
++      const row = ((await res.json()) as Example[])[0];
++      live.push(row);
++      kept++;
++    }
++  }
++  return kept;
++}
++
++Deno.serve(async (req) => {
++  const settings = (await rows<{ enabled: boolean; runs: number; token: string }>("ai_trainer?id=eq.1&select=enabled,runs,token"))[0];
++  if (!settings?.token || req.headers.get("x-trainer-key") !== settings.token) return new Response("no", { status: 401 });
++  if (!KEY) return new Response("no Gemini key", { status: 503 });
++  if (!settings.enabled) return Response.json({ skipped: "disabled" });
++  calls = 0;
++  const summary: Record<string, unknown> = { at: new Date().toISOString() };
++  // One call at a time, a few seconds apart (see GAP_MS).
++  for (const agent of ["ama", "villager"] as const) {
++    const added = await thinkUpPrompts(agent);
++    const examples = await rows<Example>(`ai_examples?agent=eq.${agent}&active=eq.true&select=id,prompt,answer,total&order=total.desc&limit=${KEEP}`);
++    const tried = [];
++    for (let i = 0; i < ROUNDS; i++) {
++      const r = await practise(agent, examples);
++      if (r) tried.push(r);
++    }
++    const kept = await keepBest(agent, examples, tried);
++    const graded = tried.filter((t) => t.total !== null);
++    summary[agent] = { newPrompts: added, answered: tried.length, average: graded.length ? graded.reduce((a, t) => a + (t.total ?? 0), 0) / graded.length : null, newExamples: kept };
++  }
++  summary.geminiCalls = calls;
++  await db("ai_trainer?id=eq.1", { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ runs: (settings.runs ?? 0) + 1, last_run: new Date().toISOString(), last_summary: summary }) });
++  console.log("trainer run", JSON.stringify(summary));
++  return Response.json(summary);
++});
+diff --git a/supabase/functions/ask-ama/index.ts b/supabase/functions/ask-ama/index.ts
+index 99882ec..d989a63 100644
+--- a/supabase/functions/ask-ama/index.ts
++++ b/supabase/functions/ask-ama/index.ts
+@@ -11,6 +11,10 @@
+ // call that name), with JWT verification off:
+ //   supabase functions deploy clever-endpoint --no-verify-jwt
+ // Secret: supabase secrets set GEMINI_API_KEY=... (or Dashboard > Edge Functions > Secrets)
++//
++// Both learn by example: the trainer (supabase/functions/agent-trainer)
++// practises on random questions around the clock and keeps the best-graded
++// answers in ai_examples; they are added to the rules here.
+ 
+ const KEY = Deno.env.get("GEMINI_API_KEY");
+ // Fast, lightly used models first (Flash-Lite answers in a second or two and is
+@@ -69,6 +73,35 @@ const SAFETY = ["HARM_CATEGORY_HARASSMENT", "HARM_CATEGORY_HATE_SPEECH", "HARM_C
+ 
+ const clip = (v: unknown, n: number) => String(v ?? "").slice(0, n).trim();
+ 
++// The trainer's best answers (ai_examples), read at most every 10 minutes.
++// If the database is slow or down, the characters answer without them.
++const SB = Deno.env.get("SUPABASE_URL");
++const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
++let examples: { agent: string; prompt: string; answer: string }[] = [];
++let examplesAt = 0;
++async function loadExamples() {
++  if (!SB || !SERVICE || Date.now() - examplesAt < 10 * 60 * 1000) return examples;
++  examplesAt = Date.now();
++  try {
++    const res = await fetch(`${SB}/rest/v1/ai_examples?active=eq.true&select=agent,prompt,answer&order=total.desc&limit=12`, {
++      headers: { apikey: SERVICE, Authorization: `Bearer ${SERVICE}` },
++      signal: AbortSignal.timeout(1500),
++    });
++    if (res.ok) examples = await res.json();
++  } catch {
++    // Keep the ones we had.
++  }
++  return examples;
++}
++function examplesBlock(agent: "ama" | "villager", rows: { agent: string; prompt: string; answer: string }[]) {
++  const mine = rows.filter((r) => r.agent === agent).slice(0, 6);
++  if (!mine.length) return "";
++  const them = agent === "ama" ? ["Player", "Ama"] : ["Chief", "You"];
++  return `\n\nEXAMPLES OF EXCELLENT ANSWERS from practice (copy their care, length and voice, never their facts: always use the facts you are given now):\n${mine
++    .map((r) => `${them[0]}: ${r.prompt}\n${them[1]}: ${r.answer}`)
++    .join("\n\n")}`;
++}
++
+ Deno.serve(async (req) => {
+   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+   if (req.method !== "POST") return json({ error: "POST only" }, 405);
+@@ -108,6 +141,8 @@ Deno.serve(async (req) => {
+     prompt = `TOWN FACTS:\n${town}\n\nTHE PLAYER ASKS: ${question}`;
+   }
+ 
++  system += examplesBlock(villager ? "villager" : "ama", await loadExamples());
++
+   const request = JSON.stringify({
+     systemInstruction: { parts: [{ text: system }] },
+     contents: [{ role: "user", parts: [{ text: prompt }] }],
